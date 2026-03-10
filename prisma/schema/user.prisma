@@ -1,68 +1,45 @@
+
+
+
+
+enum UserRole {
+  ADMIN
+  CUSTOMER
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+}
+
 model User {
-    id                 String     @id @default(uuid())
-    email              String     @unique
-    password           String
-    role               UserRole   @default(PATIENT)
-    needPasswordChange Boolean    @default(true)
-    status             UserStatus @default(ACTIVE)
-    createdAt          DateTime   @default(now())
-    updatedAt          DateTime   @updatedAt
-    admin              Admin?
-    doctor             Doctor?
-    patient            Patient?
+  id            String      @id @default(uuid())
+  name          String
+  email         String      @unique
+  password      String
 
-    @@map("users")
-}
+  role          UserRole    @default(CUSTOMER)
+  status        UserStatus  @default(ACTIVE)
 
-model Admin {
-    id            String   @id @default(uuid())
-    name          String
-    email         String   @unique
-    profilePhoto  String?
-    contactNumber String
-    isDeleted     Boolean  @default(false)
-    createdAt     DateTime @default(now())
-    updatedAt     DateTime @updatedAt
+  fullName      String?
 
-    user User @relation(fields: [email], references: [email])
+  country       String?
+  city          String?
+  area          String?
+  addressLine  String?
 
-    @@map("admins")
-}
 
-model Doctor {
-    id                  String   @id @default(uuid())
-    name                String
-    email               String   @unique
-    profilePhoto        String?
-    contactNumber       String
-    address             String
-    registrationNumber  String
-    experience          Int      @default(0)
-    gender              Gender
-    appointmentFee      Int
-    qualification       String
-    currentWorkingPlace String
-    designation         String
-    isDeleted           Boolean  @default(false)
-    createdAt           DateTime @default(now())
-    updatedAt           DateTime @updatedAt
+  profileImage  String?
+  phone         String?     @unique
 
-    user User @relation(fields: [email], references: [email])
+  wishlist     Wishlist[]
+  cart         Cart[]
 
-    @@map("doctors")
-}
+  reviews Review[]
 
-model Patient {
-    id           String   @id @default(uuid())
-    email        String   @unique
-    name         String
-    profilePhoto String?
-    address      String
-    isDeleted    Boolean  @default(false)
-    createdAt    DateTime @default(now())
-    updatedAt    DateTime @updatedAt
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
-    user User @relation(fields: [email], references: [email])
-
-    @@map("patients")
+  @@map("users")
+  @@index([email])
 }
