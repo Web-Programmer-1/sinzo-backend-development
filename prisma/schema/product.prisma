@@ -1,5 +1,3 @@
-
-
 enum ProductBadge {
   SALE
   BEST_SELLER
@@ -8,91 +6,74 @@ enum ProductBadge {
   NEW
 }
 
-
-
 model Category {
-  id             String    @id @default(uuid())
+  id             String @id @default(uuid())
   title          String
   thumbnailImage String
 
-  products       Product[]
+  products Product[]
 
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("categories")
 }
 
 model Product {
-  id                String        @id @default(uuid())
-  title             String
-  slug              String?       @unique
-  description       String?
+  id               String        @id @default(uuid())
+  title            String
+  slug             String?       @unique
+  description      String?
   productCardImage String?
-  price             Float
-  stock             Int           @default(0)
-  badge             ProductBadge?
+  price            Float
+  stock            Int           @default(0)
+  badge            ProductBadge?
 
-  categoryId        String
-  category          Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
-
-  galleryImages     String[]      // multiple gallery image
+  galleryImages String[] // multiple gallery image
 
   // color system
-  colors            String[]      // ["Black", "Blue", "White"]
+  colors String[] // ["Black", "Blue", "White"]
 
   // size system
-  sizes             String[]      // ["S", "M", "L", "XL"]
-  sizeType          String?       // MEN / WOMEN / UNISEX
+  sizes    String[] // ["S", "M", "L", "XL"]
+  sizeType String? // MEN / WOMEN / UNISEX
 
   // size guide modal
-  sizeGuideImage    String?
-  sizeGuideData     Json?         // [{size:"M", fullLength:"28", chest:"40", sleeve:"24"}]
+  sizeGuideImage String?
+  sizeGuideData  Json? // [{size:"M", fullLength:"28", chest:"40", sleeve:"24"}]
 
   // review summary
-  averageRating     Float         @default(0)
-  totalReviews      Int           @default(0)
+  averageRating Float @default(0)
+  totalReviews  Int   @default(0)
 
-  wishlist         Wishlist[]
-  cart             Cart[]
+  cart    Cart[]
   reviews Review[]
 
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  orderItem OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("products")
 }
 
-model Wishlist {
-  id         String    @id @default(uuid())
-  userId     String
-  productId  String
-
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product    Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  createdAt  DateTime  @default(now())
-
-  @@unique([userId, productId])
-  @@map("wishlists")
-}
-
 model Cart {
-  id         String    @id @default(uuid())
-  userId     String
-  productId  String
+  id        String @id @default(uuid())
+  userId    String
+  productId String
 
-  quantity   Int       @default(1)
+  quantity      Int     @default(1)
   selectedColor String?
   selectedSize  String?
 
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product    Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("carts")
 }
-

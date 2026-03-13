@@ -1,0 +1,148 @@
+
+enum CourierProvider {
+  STEADFAST
+}
+
+enum CourierOrderStatus {
+  NOT_SENT
+  SENT
+  FAILED
+}
+
+
+enum PaymentMethod {
+  CASH_ON_DELIVERY
+  ONLINE_PAYMENT
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+  PARTIAL
+  REFUNDED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  PACKED
+  SHIPPED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  RETURNED
+}
+
+enum OrderType {
+  ONLINE
+  MANUAL
+}
+
+enum DeliveryAreaType {
+  INSIDE_CITY
+  OUTSIDE_CITY
+}
+
+model Order {
+  id           String @id @default(uuid())
+  orderNumber  String @unique
+  serialNumber Int    @unique @default(autoincrement())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  fullName    String
+  phone       String
+  email       String?
+  country     String?
+  city        String?
+  area        String?
+  addressLine String
+  note        String?
+
+  deliveryArea   DeliveryAreaType
+  deliveryCharge Float            @default(0)
+
+  paymentMethod PaymentMethod @default(CASH_ON_DELIVERY)
+  paymentStatus PaymentStatus @default(UNPAID)
+  orderType     OrderType     @default(ONLINE)
+  orderStatus   OrderStatus   @default(PENDING)
+
+  subtotal       Float
+  discountAmount Float @default(0)
+  vatAmount      Float @default(0)
+  totalAmount    Float
+  paidAmount     Float @default(0)
+  dueAmount      Float
+
+
+  courierProvider   CourierProvider?
+  courierStatus     CourierOrderStatus @default(NOT_SENT)
+  consignmentId     String?
+  trackingCode      String?
+  courierNote       String?
+  courierRawResponse Json?
+  courierSentAt     DateTime?
+
+
+
+
+
+  items         OrderItem[]
+  statusHistory OrderStatusHistory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([orderStatus])
+  @@index([paymentStatus])
+  @@index([orderNumber])
+  @@map("orders")
+}
+
+model OrderItem {
+  id String @id @default(uuid())
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  productTitle  String
+  productSlug   String?
+  productImage  String?
+  selectedColor String?
+  selectedSize  String?
+
+  unitPrice Float
+  quantity  Int
+  lineTotal Float
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+model OrderStatusHistory {
+  id String @id @default(uuid())
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  status OrderStatus
+  note   String?
+
+  updatedById String?
+  updatedBy   User?   @relation("OrderStatusUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@map("order_status_history")
+}

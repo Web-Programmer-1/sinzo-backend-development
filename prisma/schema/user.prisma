@@ -1,7 +1,3 @@
-
-
-
-
 enum UserRole {
   ADMIN
   CUSTOMER
@@ -13,33 +9,34 @@ enum UserStatus {
 }
 
 model User {
-  id            String      @id @default(uuid())
-  name          String
-  email         String      @unique
-  password      String
+  id       String @id @default(uuid())
+  name     String
+  email    String @unique
+  password String
 
-  role          UserRole    @default(CUSTOMER)
-  status        UserStatus  @default(ACTIVE)
+  role   UserRole   @default(CUSTOMER)
+  status UserStatus @default(ACTIVE)
 
-  fullName      String?
+  fullName String?
 
-  country       String?
-  city          String?
-  area          String?
-  addressLine  String?
+  country     String?
+  city        String?
+  area        String?
+  addressLine String?
 
+  profileImage String?
+  phone        String? @unique
 
-  profileImage  String?
-  phone         String?     @unique
-
-  wishlist     Wishlist[]
-  cart         Cart[]
+  cart Cart[]
 
   reviews Review[]
+  orders  Order[]
 
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  updatedOrderStatusHistories OrderStatusHistory[] @relation("OrderStatusUpdatedBy")
 
-  @@map("users")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([email])
+  @@map("users")
 }
