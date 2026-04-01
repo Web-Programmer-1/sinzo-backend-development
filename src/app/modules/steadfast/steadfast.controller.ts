@@ -46,8 +46,84 @@ const syncCourierStatus = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+
+
+
+const getSteadfastHistory = catchAsync(async (req: Request, res: Response) => {
+  const result = await SteadfastService.getSteadfastHistory(
+    req.query as Record<string, any>
+  );
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Steadfast history fetched successfully",
+    data: result.data,
+    meta: result.meta,
+  });
+});
+
+const getSteadfastHistoryById = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  const result = await SteadfastService.getSteadfastHistoryById(id as string);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Steadfast history details fetched successfully",
+    data: result,
+  });
+});
+
+
+
+
+
+const downloadSteadfastHistoryPdf = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  const pdfBuffer = await SteadfastService.generateSteadfastHistoryPdf(id as string);
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename=steadfast-history-${id}.pdf`
+  );
+
+  res.status(httpStatus.OK).send(pdfBuffer);
+});
+
+
+
+
+
+
+
+
+const deleteSteadfastHistory = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  const result = await SteadfastService.deleteSteadfastHistory(id as string);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Steadfast history deleted successfully",
+    data: result,
+  });
+});
+
+
+
+
+
 export const SteadfastController = {
   sendSingleOrder,
   sendBulkOrders,
   syncCourierStatus,
+  getSteadfastHistory,
+  getSteadfastHistoryById,
+  deleteSteadfastHistory,
+  downloadSteadfastHistoryPdf
 };

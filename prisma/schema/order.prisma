@@ -52,6 +52,8 @@ model Order {
   userId String?
   user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+
+  guestId String?
   fullName    String
   phone       String
   email       String?
@@ -87,6 +89,13 @@ model Order {
 
 
 
+  receiptPdfPath String?
+  receiptHtml    String?
+
+  ipAddress String?
+  deviceId  String?
+
+
 
 
   items         OrderItem[]
@@ -99,6 +108,9 @@ model Order {
   @@index([orderStatus])
   @@index([paymentStatus])
   @@index([orderNumber])
+  @@index([ipAddress])
+  @@index([deviceId])
+  
   @@map("orders")
 }
 
@@ -144,5 +156,6 @@ model OrderStatusHistory {
   createdAt DateTime @default(now())
 
   @@index([orderId])
+
   @@map("order_status_history")
 }

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { UserControllers } from "./user.controller";
 import authGuard from "../../middlewares/AuthGurd";
 import { UserRole } from "@prisma/client";
+import { uploadImage } from "../../image-uploader/product.upload";
 
 const router = Router();
 
@@ -13,7 +14,12 @@ router.get("/me", authGuard("ADMIN", "CUSTOMER"), UserControllers.getMe);
 
 router.get("/", authGuard(UserRole.ADMIN, UserRole.CUSTOMER), UserControllers.getAllUsers);
 router.get("/:id", authGuard("ADMIN"), UserControllers.getUserById);
-router.patch("/:id", authGuard(UserRole.ADMIN, UserRole.CUSTOMER), UserControllers.updateUser);
+router.patch(
+  "/:id",
+  authGuard(UserRole.ADMIN, UserRole.CUSTOMER),
+  uploadImage.single("profileImage"),
+  UserControllers.updateUser
+);
 router.delete("/:id", authGuard("ADMIN"), UserControllers.deleteUser);
 
 router.patch("/block/:id", authGuard("ADMIN"), UserControllers.blockUser);

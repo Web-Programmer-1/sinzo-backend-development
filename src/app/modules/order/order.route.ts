@@ -5,22 +5,32 @@ import { OrderController } from "./order.controller";
 
 const router = express.Router();
 
+
+
+router.get(
+  "/customer-ranking",
+  authGuard(UserRole.ADMIN, UserRole.CUSTOMER),
+  OrderController.getCustomerRanking
+);
+
+
+
 // customer
 router.post(
   "/place-order",
-  authGuard(UserRole.CUSTOMER, UserRole.ADMIN),
+ 
   OrderController.placeOrder
 );
 
 router.get(
   "/my-orders",
-  authGuard(UserRole.CUSTOMER, UserRole.ADMIN),
+ 
   OrderController.getMyOrders
 );
 
 router.get(
   "/my-orders/:id",
-  authGuard(UserRole.CUSTOMER, UserRole.ADMIN),
+
   OrderController.getMySingleOrder
 );
 
@@ -44,14 +54,14 @@ router.get("/track/:orderNumber",
 
   router.get(
   "/",
-  authGuard(UserRole.ADMIN),
+  authGuard(UserRole.ADMIN, UserRole.CUSTOMER),
   OrderController.getAllOrders
 );
 
 
 router.get(
   "/:id",
-  authGuard(UserRole.ADMIN),
+  authGuard(UserRole.ADMIN, UserRole.CUSTOMER ),
   OrderController.getOrderById
 );
 
@@ -60,16 +70,25 @@ router.get(
 
 router.patch(
   "/:id/status",
-  authGuard(UserRole.ADMIN),
+  authGuard(UserRole.ADMIN, UserRole.CUSTOMER),
   OrderController.updateOrderStatus
 );
 
 
 router.patch(
   "/payment-status/:id",
-  authGuard(UserRole.ADMIN),
+  authGuard(UserRole.ADMIN, UserRole.CUSTOMER),
   OrderController.updatePaymentStatus
 );
+
+
+router.delete(
+  "/:id",
+  authGuard(UserRole.ADMIN, UserRole.CUSTOMER),
+  OrderController.deleteOrder
+);
+
+
 
 
 

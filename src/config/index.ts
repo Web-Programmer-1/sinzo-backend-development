@@ -1,18 +1,3 @@
-// import dotenv from 'dotenv';
-// import path from 'path';
-
-// dotenv.config({ path: path.join(process.cwd(), '.env') });
-
-// export default {
-//     node_env: process.env.NODE_ENV,
-//     port: process.env.PORT,
-//     database_url: process.env.DATABASE_URL,
-// }
-
-
-
-
-
 
 
 
@@ -49,5 +34,23 @@ export default {
     expires_in: process.env.RESET_PASS_EXPIRES_IN,
     frontend_base_url: process.env.FRONTEND_BASE_URL,
   },
+
+
+
+
+    mail: {
+    host: process.env.MAIL_HOST,
+    port: Number(process.env.MAIL_PORT) || 587,
+    secure: process.env.MAIL_SECURE === "true",
+    user: process.env.MAIL_USER,
+    pass: process.env.MAIL_PASS,
+    fromName: process.env.MAIL_FROM_NAME || "SINZO",
+    fromEmail: process.env.MAIL_FROM_EMAIL,
+  },
+  frontendUrl: process.env.FRONTEND_URL,
+
+
+
+
 };
 

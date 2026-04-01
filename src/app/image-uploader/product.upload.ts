@@ -26,6 +26,8 @@ export const uploadImage = multer({
         folder = "blogs";
       } else if (req.baseUrl.includes("events")) {
         folder = "events";
+      } else if (req.baseUrl.includes("users")) {
+        folder = "users";
       }
 
       const ext = file.originalname.split(".").pop();
@@ -47,5 +49,3 @@ export const uploadImage = multer({
     }
   },
 });
-
-

@@ -9,7 +9,7 @@ const router = Router();
 
 router.post(
   "/create-category",
-  authGuard(UserRole.ADMIN),
+  authGuard(UserRole.ADMIN, UserRole.CUSTOMER),
   uploadImage.single("thumbnailImage"),
   CategoryControllers.createCategory
 );
@@ -19,14 +19,14 @@ router.get("/:id", CategoryControllers.getCategoryById);
 
 router.patch(
   "/:id",
-  authGuard(UserRole.ADMIN),
+  authGuard(UserRole.ADMIN, UserRole.CUSTOMER),
   uploadImage.single("thumbnailImage"),
   CategoryControllers.updateCategory
 );
 
 router.delete(
   "/:id",
-  authGuard(UserRole.ADMIN),
+  authGuard(UserRole.ADMIN, UserRole.CUSTOMER),
   CategoryControllers.deleteCategory
 );
 

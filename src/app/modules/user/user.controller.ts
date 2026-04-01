@@ -17,17 +17,6 @@ const registerUser = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-// const loginUser = catchAsync(async (req: Request, res: Response) => {
-//   const result = await UserServices.loginUser(req.body);
-
-//   sendResponse(res, {
-//     statusCode: httpStatus.OK,
-//     success: true,
-//     message: "User logged in successfully",
-//     data: result,
-//   });
-// });
-
 
 
 const loginUser = catchAsync(async (req: Request, res: Response) => {
@@ -37,6 +26,7 @@ const loginUser = catchAsync(async (req: Request, res: Response) => {
     httpOnly: true,
     secure: false, // production এ true
     sameSite: "lax", // production cross-site হলে "none"
+    maxAge: 150 * 24 * 60 * 60 * 1000, // 150 days
   });
 
   sendResponse(res, {
@@ -46,7 +36,6 @@ const loginUser = catchAsync(async (req: Request, res: Response) => {
     data: result,
   });
 });
-
 
 
 
@@ -98,8 +87,15 @@ const getMe = catchAsync(async (req: AuthRequest, res: Response) => {
   });
 });
 
+
 const updateUser = catchAsync(async (req: Request, res: Response) => {
-  const result = await UserServices.updateUser(req.params.id as string, req.body);
+  const payload = { ...req.body };
+
+  if (req.file) {
+    payload.profileImage = (req.file as Express.MulterS3.File).location;
+  }
+
+  const result = await UserServices.updateUser(req.params.id as string, payload);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

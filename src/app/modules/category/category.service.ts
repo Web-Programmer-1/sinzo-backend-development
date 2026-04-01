@@ -33,15 +33,53 @@ const createCategory = async (payload: TCategoryPayload) => {
   return result;
 };
 
-const getAllCategories = async () => {
+
+
+
+const getAllCategories = async (query: Record<string, any>) => {
+  const searchTerm = query.searchTerm || "";
+  const page = Number(query.page) || 1;
+  const limit = Number(query.limit) || 10;
+  const skip = (page - 1) * limit;
+
+  const whereConditions = searchTerm
+    ? {
+        title: {
+          contains: searchTerm,
+          mode: "insensitive" as const,
+        },
+      }
+    : {};
+
   const result = await prisma.category.findMany({
+    where: whereConditions,
     orderBy: {
       createdAt: "desc",
     },
+    skip,
+    take: limit,
   });
 
-  return result;
+  const total = await prisma.category.count({
+    where: whereConditions,
+  });
+
+  return {
+    meta: {
+      page,
+      limit,
+      total,
+      totalPage: Math.ceil(total / limit),
+    },
+    data: result,
+  };
 };
+
+
+
+
+
+
 
 const getCategoryById = async (id: string) => {
   const result = await prisma.category.findUnique({

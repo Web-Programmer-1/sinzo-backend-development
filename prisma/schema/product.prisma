@@ -6,6 +6,21 @@ enum ProductBadge {
   NEW
 }
 
+enum ProductColor {
+  BLACK
+  WHITE
+  BLUE
+  RED
+  GREEN
+  YELLOW
+  GRAY
+  BROWN
+  NAVY
+  PINK
+  PURPLE
+  ORANGE
+}
+
 model Category {
   id             String @id @default(uuid())
   title          String
@@ -22,6 +37,7 @@ model Category {
 model Product {
   id               String        @id @default(uuid())
   title            String
+  cardShortTitle String?
   slug             String?       @unique
   description      String?
   productCardImage String?
@@ -35,7 +51,7 @@ model Product {
   galleryImages String[] // multiple gallery image
 
   // color system
-  colors String[] // ["Black", "Blue", "White"]
+   colorVariants Json?
 
   // size system
   sizes    String[] // ["S", "M", "L", "XL"]
@@ -50,6 +66,7 @@ model Product {
   totalReviews  Int   @default(0)
 
   cart    Cart[]
+  wishlist  Wishlist[]
   reviews Review[]
 
   orderItem OrderItem[]
@@ -60,20 +77,45 @@ model Product {
   @@map("products")
 }
 
+
+
+
 model Cart {
   id        String @id @default(uuid())
-  userId    String
+  guestId   String
   productId String
 
   quantity      Int     @default(1)
   selectedColor String?
   selectedSize  String?
 
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([guestId])
   @@map("carts")
+}
+
+
+
+
+
+model Wishlist {
+  id        String @id @default(uuid())
+  guestId   String
+  productId String
+
+  selectedColor String?
+  selectedSize  String?
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guestId])
+  @@unique([guestId, productId, selectedColor, selectedSize])
+  @@map("wishlists")
 }

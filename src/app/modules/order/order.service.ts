@@ -2,12 +2,19 @@ import AppError from "../../shared/ApiError";
 import httpStatus from "http-status";
 import { prisma } from "../../shared/Prisma";
 import {
+  CustomerBadge,
   DeliveryAreaType,
   OrderStatus,
   PaymentMethod,
   PaymentStatus,
   Prisma,
 } from "@prisma/client";
+import { sendEmail } from "../../../util/sendEmail";
+import { orderConfirmationTemplate } from "./order.emailTemplate";
+import config from "../../../config";
+import { validateOrderFraudCheck } from "../../../util/ClientInfo";
+import { updateCustomerRanking } from "../../../util/order_utils/order.util";
+import { recalculateSingleCustomerRanking } from "../../../util/order_utils/reCalculate";
 
 const getDeliveryCharge = (deliveryArea: DeliveryAreaType) => {
   if (deliveryArea === "INSIDE_CITY") return 80;
@@ -20,9 +27,148 @@ const generateOrderNumber = () => {
   return `SNZ-${Date.now()}`;
 };
 
-const placeOrder = async (userId: string, payload: any) => {
-  if (!userId) {
-    throw new AppError(httpStatus.UNAUTHORIZED, "User ID is required");
+
+
+
+
+
+
+// const placeOrder = async (userId: string, payload: any) => {
+//   if (!userId) {
+//     throw new AppError(httpStatus.UNAUTHORIZED, "User ID is required");
+//   }
+
+//   const { fullName, phone, email, country, city, area, addressLine, 
+//           note, deliveryArea, paymentMethod } = payload;
+
+//   if (!fullName || !phone || !addressLine || !deliveryArea) {
+//     throw new AppError(httpStatus.BAD_REQUEST, 
+//       "Full name, phone, address line and delivery area are required");
+//   }
+
+//   // ✅ একটি query তে cart + product একসাথে
+//   const cartItems = await prisma.cart.findMany({
+//     where: { userId },
+//     include: { product: true },
+//   });
+
+//   if (!cartItems.length) {
+//     throw new AppError(httpStatus.BAD_REQUEST, "Cart is empty");
+//   }
+
+//   // ✅ Validation লুপ — DB call নেই, শুধু memory check
+//   for (const item of cartItems) {
+//     if (!item.product) {
+//       throw new AppError(httpStatus.NOT_FOUND, "Product not found");
+//     }
+//     if (item.product.stock < item.quantity) {
+//       throw new AppError(httpStatus.BAD_REQUEST, 
+//         `Not enough stock for: ${item.product.title}`);
+//     }
+//   }
+
+//   // ✅ সব calculation transaction এর বাইরে
+//   const subtotal = cartItems.reduce((sum, item) => 
+//     sum + item.product.price * item.quantity, 0);
+
+//   const deliveryCharge = getDeliveryCharge(deliveryArea as DeliveryAreaType);
+//   const totalAmount = subtotal + deliveryCharge;
+//   const orderNumber = generateOrderNumber();
+
+//   // ✅ Transaction যতটা সম্ভব ছোট রাখো
+//   const createdOrder = await prisma.$transaction(async (tx) => {
+//     const order = await tx.order.create({
+//       data: {
+//         orderNumber, userId, fullName, phone, email,
+//         country, city, area, addressLine, note, deliveryArea,
+//         deliveryCharge,
+//         paymentMethod: paymentMethod || PaymentMethod.CASH_ON_DELIVERY,
+//         paymentStatus: PaymentStatus.UNPAID,
+//         orderStatus: OrderStatus.PENDING,
+//         subtotal,
+//         discountAmount: 0,
+//         vatAmount: 0,
+//         totalAmount,
+//         paidAmount: 0,
+//         dueAmount: totalAmount,
+//       },
+//     });
+
+//     // ✅ Bulk insert — একটি query তে সব items
+//     await tx.orderItem.createMany({
+//       data: cartItems.map((item) => ({
+//         orderId: order.id,
+//         productId: item.productId,
+//         productTitle: item.product.title,
+//         productSlug: item.product.slug,
+//         productImage: item.product.productCardImage,
+//         selectedColor: item.selectedColor,
+//         selectedSize: item.selectedSize,
+//         unitPrice: item.product.price,
+//         quantity: item.quantity,
+//         lineTotal: item.product.price * item.quantity,
+//       })),
+//     });
+
+//     // ✅ Status history
+//     await tx.orderStatusHistory.create({
+//       data: {
+//         orderId: order.id,
+//         status: OrderStatus.PENDING,
+//         note: "Order placed successfully",
+//       },
+//     });
+
+//     // ✅ N+1 দূর করো — একটি raw query তে সব stock update
+//     // Prisma raw query দিয়ে bulk update
+//     const stockUpdates = cartItems.map((item) =>
+//       tx.product.update({
+//         where: { id: item.productId },
+//         data: { stock: { decrement: item.quantity } },
+//       })
+//     );
+//     await Promise.all(stockUpdates); // ✅ parallel execute
+
+//     // ✅ Cart clear
+//     await tx.cart.deleteMany({ where: { userId } });
+
+//     return order;
+//   });
+
+ 
+//   const finalOrder = await prisma.order.findUnique({
+//     where: { id: createdOrder.id },
+//     include: {
+//       items: true,
+//       statusHistory: { orderBy: { createdAt: "asc" } },
+//     },
+//   });
+
+
+//   if (finalOrder?.email) {
+//     setImmediate(() => {
+//       sendOrderConfirmationEmail(finalOrder).catch((err) =>
+//         console.error("Email failed:", err)
+//       );
+//     });
+//   }
+
+//   return finalOrder;
+// };
+
+
+
+
+
+
+
+
+
+
+const placeOrder = async (guestId: string, payload: any,   ) => {
+
+  if (!guestId) {
+    throw new AppError(httpStatus.UNAUTHORIZED, "Guest ID is required");
   }
 
   const {
@@ -38,6 +184,8 @@ const placeOrder = async (userId: string, payload: any) => {
     paymentMethod,
   } = payload;
 
+
+
   if (!fullName || !phone || !addressLine || !deliveryArea) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -45,11 +193,15 @@ const placeOrder = async (userId: string, payload: any) => {
     );
   }
 
+
+
+
+
+
+
   const cartItems = await prisma.cart.findMany({
-    where: { userId },
-    include: {
-      product: true,
-    },
+    where: { guestId },
+    include: { product: true },
   });
 
   if (!cartItems.length) {
@@ -64,29 +216,26 @@ const placeOrder = async (userId: string, payload: any) => {
     if (item.product.stock < item.quantity) {
       throw new AppError(
         httpStatus.BAD_REQUEST,
-        `Not enough stock for product: ${item.product.title}`
+        `Not enough stock for: ${item.product.title}`
       );
     }
   }
 
-  const subtotal = cartItems.reduce((sum, item) => {
-    return sum + item.product.price * item.quantity;
-  }, 0);
+  const subtotal = cartItems.reduce(
+    (sum, item) => sum + item.product.price * item.quantity,
+    0
+  );
 
   const deliveryCharge = getDeliveryCharge(deliveryArea as DeliveryAreaType);
-  const discountAmount = 0;
-  const vatAmount = 0;
-  const totalAmount = subtotal + deliveryCharge + vatAmount - discountAmount;
-  const paidAmount = 0;
-  const dueAmount = totalAmount - paidAmount;
-
+  const totalAmount = subtotal + deliveryCharge;
   const orderNumber = generateOrderNumber();
 
-  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const createdOrder = await tx.order.create({
+  const createdOrder = await prisma.$transaction(async (tx) => {
+
+    const order = await tx.order.create({
       data: {
         orderNumber,
-        userId,
+        guestId,
         fullName,
         phone,
         email,
@@ -101,17 +250,27 @@ const placeOrder = async (userId: string, payload: any) => {
         paymentStatus: PaymentStatus.UNPAID,
         orderStatus: OrderStatus.PENDING,
         subtotal,
-        discountAmount,
-        vatAmount,
+        discountAmount: 0,
+        vatAmount: 0,
         totalAmount,
-        paidAmount,
-        dueAmount,
+        paidAmount: 0,
+        dueAmount: totalAmount,
       },
     });
 
+
+    await updateCustomerRanking({
+  userId: order.userId,
+  fullName: order.fullName,
+  phone: order.phone,
+  totalAmount: order.totalAmount,
+  orderStatus: order.orderStatus,
+  createdAt: order.createdAt,
+});
+
     await tx.orderItem.createMany({
       data: cartItems.map((item) => ({
-        orderId: createdOrder.id,
+        orderId: order.id,
         productId: item.productId,
         productTitle: item.product.title,
         productSlug: item.product.slug,
@@ -126,48 +285,108 @@ const placeOrder = async (userId: string, payload: any) => {
 
     await tx.orderStatusHistory.create({
       data: {
-        orderId: createdOrder.id,
+        orderId: order.id,
         status: OrderStatus.PENDING,
         note: "Order placed successfully",
       },
     });
 
-    for (const item of cartItems) {
-      await tx.product.update({
-        where: { id: item.productId },
-        data: {
-          stock: {
-            decrement: item.quantity,
+    await Promise.all(
+      cartItems.map((item) =>
+        tx.product.update({
+          where: { id: item.productId },
+          data: {
+            stock: {
+              decrement: item.quantity,
+            },
           },
-        },
-      });
-    }
+        })
+      )
+    );
 
     await tx.cart.deleteMany({
-      where: { userId },
+      where: { guestId },
     });
 
-    const finalOrder = await tx.order.findUnique({
-      where: { id: createdOrder.id },
-      include: {
-        items: true,
-        statusHistory: {
-          orderBy: {
-            createdAt: "asc",
-          },
-        },
-      },
-    });
-
-    return finalOrder;
+    return order;
   });
 
-  return result;
+  const finalOrder = await prisma.order.findUnique({
+    where: { id: createdOrder.id },
+    include: {
+      items: true,
+      statusHistory: { orderBy: { createdAt: "asc" } },
+    },
+  });
+
+  if (finalOrder?.email) {
+    setImmediate(() => {
+      sendOrderConfirmationEmail(finalOrder).catch((err) =>
+        console.error("Email failed:", err)
+      );
+    });
+  }
+
+  return finalOrder;
 };
 
-const getMyOrders = async (userId: string) => {
+
+
+/**
+ * Sends an email to the customer after a successful order
+ * @param {object} order - The order object
+ * @returns {Promise<void>} - A promise that resolves when the email is sent
+ */
+const sendOrderConfirmationEmail = async (order: any) => {
+  await sendEmail({
+    to: order.email,
+    subject: `Order Confirmation - ${order.orderNumber}`,
+    html: orderConfirmationTemplate({
+      customerName: order.fullName,
+      orderNumber: order.orderNumber,
+      orderDate: new Date(order.createdAt).toLocaleString("en-BD", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }),
+      totalAmount: order.totalAmount,
+      subtotal: order.subtotal,
+      deliveryCharge: order.deliveryCharge,
+      discountAmount: order.discountAmount,
+      paymentMethod: order.paymentMethod,
+      paymentStatus: order.paymentStatus,
+      addressLine: order.addressLine,
+      city: order.city || "",
+      area: order.area || "",
+      note: order.note || "",
+      shopName: "SINZO",
+      shopAddress: "Dhaka Lalbagh",
+      shopPhone: "01576450711",
+      receiptUrl: `${config.frontendUrl}/orders/${order.id}`,
+      items: order.items.map((item: any) => ({
+        productTitle: item.productTitle,
+        productImage: item.productImage || "",
+        selectedColor: item.selectedColor || "",
+        selectedSize: item.selectedSize || "",
+        unitPrice: item.unitPrice,
+        quantity: item.quantity,
+        lineTotal: item.lineTotal,
+      })),
+    }),
+  });
+};
+
+
+
+
+
+
+
+
+
+
+const getMyOrders = async (guestId: string) => {
   const result = await prisma.order.findMany({
-    where: { userId },
+    where: { guestId },
     include: {
       items: true,
     },
@@ -179,11 +398,11 @@ const getMyOrders = async (userId: string) => {
   return result;
 };
 
-const getMySingleOrder = async (userId: string, orderId: string) => {
+const getMySingleOrder = async (guestId: string, orderId: string) => {
   const result = await prisma.order.findFirst({
     where: {
       id: orderId,
-      userId,
+      guestId,
     },
     include: {
       items: true,
@@ -201,10 +420,6 @@ const getMySingleOrder = async (userId: string, orderId: string) => {
 
   return result;
 };
-
-
-
-
 
 const trackOrder = async (orderNumber: string) => {
   const order = await prisma.order.findUnique({
@@ -226,15 +441,7 @@ const trackOrder = async (orderNumber: string) => {
   return order;
 };
 
-
-
-
-
-
-
 // --------------------ADMIN-API------------------
-
-
 
 const getAllOrders = async (query: Record<string, any>) => {
   const page = Number(query.page) || 1;
@@ -358,9 +565,6 @@ const getAllOrders = async (query: Record<string, any>) => {
   };
 };
 
-
-
-
 const getOrderById = async (orderId: string) => {
   const order = await prisma.order.findUnique({
     where: {
@@ -393,15 +597,10 @@ const getOrderById = async (orderId: string) => {
   return order;
 };
 
-
-
-
-
-
 const updateOrderStatus = async (
   adminId: string,
   orderId: string,
-  payload: { status: OrderStatus; note?: string }
+  payload: { status: OrderStatus; note?: string },
 ) => {
   const { status, note } = payload;
 
@@ -413,37 +612,42 @@ const updateOrderStatus = async (
     throw new AppError(httpStatus.NOT_FOUND, "Order not found");
   }
 
-  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    // update order status
-    const updatedOrder = await tx.order.update({
-      where: { id: orderId },
-      data: {
-        orderStatus: status,
-      },
-    });
+  const updatedOrder = await prisma.$transaction(
+    async (tx: Prisma.TransactionClient) => {
 
-    // create history log
-    await tx.orderStatusHistory.create({
-      data: {
-        orderId,
-        status,
-        note,
-        updatedById: adminId,
-      },
-    });
+      // update order status
+      const order = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          orderStatus: status,
+        },
+      });
 
-    return updatedOrder;
+      // create history log
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId,
+          status,
+          note,
+          updatedById: adminId,
+        },
+      });
+
+      return order;
+    }
+  );
+
+
+  await recalculateSingleCustomerRanking({
+    userId: updatedOrder.userId,
+    phone: updatedOrder.phone,
   });
 
-  return result;
+  return updatedOrder;
 };
-
-
-
-
 const updatePaymentStatus = async (
   orderId: string,
-  payload: { paymentStatus: PaymentStatus; paidAmount?: number }
+  payload: { paymentStatus: PaymentStatus; paidAmount?: number },
 ) => {
   const { paymentStatus, paidAmount } = payload;
 
@@ -473,6 +677,113 @@ const updatePaymentStatus = async (
 
 
 
+
+
+const getCustomerRanking = async (query: Record<string, any>) => {
+  const page = Number(query.page) || 1;
+  const limit = Number(query.limit) || 20;
+  const skip = (page - 1) * limit;
+
+  const where: any = {};
+
+  if (query.badge) {
+    where.badge = query.badge as CustomerBadge;
+  }
+
+  if (query.phone) {
+    where.phone = {
+      contains: query.phone,
+      mode: "insensitive",
+    };
+  }
+
+  if (query.fullName) {
+    where.fullName = {
+      contains: query.fullName,
+      mode: "insensitive",
+    };
+  }
+
+  const data = await prisma.customerRanking.findMany({
+    where,
+    orderBy: [
+      { deliveredOrders: "desc" },
+      { totalSpent: "desc" },
+      { totalOrders: "desc" },
+      { lastOrderAt: "desc" },
+    ],
+    skip,
+    take: limit,
+  });
+
+  const total = await prisma.customerRanking.count({ where });
+
+  return {
+    meta: {
+      page,
+      limit,
+      total,
+    },
+    data: data.map((item, index) => ({
+      rank: skip + index + 1,
+      ...item,
+    })),
+  };
+};
+
+
+
+
+
+
+const deleteOrder = async (orderId: string) => {
+  const existingOrder = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      items: true,
+    },
+  });
+
+  if (!existingOrder) {
+    throw new AppError(httpStatus.NOT_FOUND, "Order not found");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // stock restore
+    await Promise.all(
+      existingOrder.items.map((item) => {
+        if (!item.productId) return Promise.resolve();
+
+        return tx.product.update({
+          where: { id: item.productId },
+          data: {
+            stock: {
+              increment: item.quantity,
+            },
+          },
+        });
+      })
+    );
+
+    // delete order
+    // OrderItem + OrderStatusHistory cascade delete হয়ে যাবে
+    await tx.order.delete({
+      where: { id: orderId },
+    });
+  });
+
+  await recalculateSingleCustomerRanking({
+    userId: existingOrder.userId,
+    phone: existingOrder.phone,
+  });
+
+  return null;
+};
+
+
+
+
+
 export const OrderService = {
   placeOrder,
   getMyOrders,
@@ -482,4 +793,6 @@ export const OrderService = {
   getAllOrders,
   getOrderById,
   updatePaymentStatus,
+  getCustomerRanking,
+  deleteOrder,
 };

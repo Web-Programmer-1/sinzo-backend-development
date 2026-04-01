@@ -1,0 +1,36 @@
+enum CustomerBadge {
+  NORMAL
+  VIP
+  LOYAL
+}
+
+model CustomerRanking {
+  id String @id @default(uuid())
+
+  customerKey String @unique
+
+  userId String?
+  phone  String
+  fullName String
+
+  totalOrders Int @default(0)
+  deliveredOrders Int @default(0)
+  cancelledOrders Int @default(0)
+  totalSpent Float @default(0)
+
+  badge CustomerBadge @default(NORMAL)
+
+  lastOrderAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerKey])
+  @@index([userId])
+  @@index([phone])
+  @@index([badge])
+  @@index([totalOrders])
+  @@index([deliveredOrders])
+
+  @@map("customer_rankings")
+}

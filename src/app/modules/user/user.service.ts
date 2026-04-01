@@ -42,49 +42,6 @@ const registerUser = async (payload: any) => {
   return result;
 };
 
-// const loginUser = async (payload: { email: string; password: string }) => {
-//   const user = await prisma.user.findUnique({
-//     where: { email: payload.email },
-//   });
-
-//   if (!user) {
-//     throw new AppError(httpStatus.NOT_FOUND, "User not found");
-//   }
-
-//   if (user.status === "BLOCKED") {
-//     throw new AppError(httpStatus.FORBIDDEN, "User is blocked");
-//   }
-
-//   const isPasswordMatched = await comparePassword(
-//     payload.password,
-//     user.password
-//   );
-
-//   if (!isPasswordMatched) {
-//     throw new AppError(httpStatus.UNAUTHORIZED, "Password does not match");
-//   }
-
-//   const accessToken = createToken(
-//     {
-//       userId: user.id,
-//       role: user.role,
-//     },
-//     process.env.JWT_ACCESS_SECRET as string,
-//     process.env.JWT_ACCESS_EXPIRES_IN as any
-//   );
-
-//   return {
-//     accessToken,
-//     user: {
-//       id: user.id,
-//       name: user.name,
-//       email: user.email,
-//       role: user.role,
-//       status: user.status,
-//     },
-//   };
-// };
-
 
 
 
@@ -115,8 +72,8 @@ const loginUser = async (payload: { email: string; password: string }) => {
       userId: user.id,
       role: user.role,
     },
-    process.env.JWT_ACCESS_SECRET as string,
-    process.env.JWT_ACCESS_EXPIRES_IN as any
+    process.env.JWT_ACCESS_SECRET as string ,
+    process.env.JWT_ACCESS_EXPIRES_IN || "90d"
   );
 
   return {

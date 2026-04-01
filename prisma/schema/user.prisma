@@ -27,7 +27,7 @@ model User {
   profileImage String?
   phone        String? @unique
 
-  cart Cart[]
+
 
   reviews Review[]
   orders  Order[]

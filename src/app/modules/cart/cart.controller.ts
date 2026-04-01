@@ -2,12 +2,12 @@ import { Request, Response } from "express";
 import { CartService } from "./cart.service";
 import catchAsync from "../../shared/catchAsync";
 import sendResponse from "../../shared/sendResponse";
-import { AuthRequest } from "../../middlewares/AuthGurd";
+import { getGuestId } from "../../../helper/guestIdGenerator";
 
-const addToCart = catchAsync(async (req: AuthRequest, res: Response) => {
-  const userId = req.user!.userId;
+const addToCart = catchAsync(async (req: Request, res: Response) => {
+  const guestId = getGuestId(req, res);
 
-  const result = await CartService.addToCart(userId, req.body);
+  const result = await CartService.addToCart(guestId, req.body);
 
   sendResponse(res, {
     statusCode: 201,
@@ -17,10 +17,10 @@ const addToCart = catchAsync(async (req: AuthRequest, res: Response) => {
   });
 });
 
-const getMyCart = catchAsync(async (req: AuthRequest, res: Response) => {
-  const userId = req.user!.userId;
+const getMyCart = catchAsync(async (req: Request, res: Response) => {
+  const guestId = getGuestId(req as Request, res  as Response);
 
-  const result = await CartService.getMyCart(userId);
+  const result = await CartService.getMyCart(guestId);
 
   sendResponse(res, {
     statusCode: 200,
@@ -30,11 +30,11 @@ const getMyCart = catchAsync(async (req: AuthRequest, res: Response) => {
   });
 });
 
-const updateCartItem = catchAsync(async (req: AuthRequest, res: Response) => {
-  const userId = req.user!.userId;
+const updateCartItem = catchAsync(async (req: Request, res: Response) => {
+  const guestId = getGuestId(req as Request, res as Response);
   const { cartId } = req.params as { cartId: string };
 
-  const result = await CartService.updateCartItem(userId, cartId, req.body);
+  const result = await CartService.updateCartItem(guestId, cartId, req.body);
 
   sendResponse(res, {
     statusCode: 200,
@@ -44,11 +44,11 @@ const updateCartItem = catchAsync(async (req: AuthRequest, res: Response) => {
   });
 });
 
-const removeCartItem = catchAsync(async (req: AuthRequest, res: Response) => {
-  const userId = req.user!.userId;
+const removeCartItem = catchAsync(async (req: Request, res: Response) => {
+  const guestId = getGuestId(req as Request, res as Response);
   const { cartId } = req.params as { cartId: string };
 
-  await CartService.removeCartItem(userId, cartId);
+  await CartService.removeCartItem(guestId, cartId);
 
   sendResponse(res, {
     statusCode: 200,
@@ -58,10 +58,10 @@ const removeCartItem = catchAsync(async (req: AuthRequest, res: Response) => {
   });
 });
 
-const clearMyCart = catchAsync(async (req: AuthRequest, res: Response) => {
-  const userId = req.user!.userId;
+const clearMyCart = catchAsync(async (req: Request, res: Response) => {
+  const guestId = getGuestId(req as Request, res as Response);
 
-  await CartService.clearMyCart(userId);
+  await CartService.clearMyCart(guestId);
 
   sendResponse(res, {
     statusCode: 200,

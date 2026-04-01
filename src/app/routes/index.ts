@@ -6,6 +6,7 @@ import { ReviewRoutes } from '../modules/review/review.route';
 import { cartRoutes } from '../modules/cart/cart.route';
 import { orderRoutes } from '../modules/order/order.route';
 import { steadfastRoutes } from '../modules/steadfast/steadfast.route';
+import { WishlistRoutes } from '../modules/wishlist/wishlist.route';
 
 
 const router = express.Router();
@@ -38,6 +39,10 @@ const moduleRoutes = [
     {
         path: '/steadfast',
         route: steadfastRoutes,
+    },
+    {
+        path: '/wishlist',
+        route: WishlistRoutes,
     },
 
 ];

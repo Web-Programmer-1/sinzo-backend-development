@@ -4,12 +4,12 @@ import catchAsync from "../../shared/catchAsync";
 import sendResponse from "../../shared/sendResponse";
 import { AuthRequest } from "../../middlewares/AuthGurd";
 import { OrderService } from "./order.service";
-import { get } from "http";
+import { getCartOwner } from "../../../helper/getCartOwener";
 
-const placeOrder = catchAsync(async (req: AuthRequest, res: Response) => {
-  const userId = req.user!.userId;
+const placeOrder = catchAsync(async (req: Request, res: Response) => {
+  const {  guestId } = getCartOwner(req, res);
 
-  const result = await OrderService.placeOrder(userId, req.body);
+  const result = await OrderService.placeOrder(  guestId , req.body);
 
   sendResponse(res, {
     statusCode: httpStatus.CREATED,
@@ -19,10 +19,11 @@ const placeOrder = catchAsync(async (req: AuthRequest, res: Response) => {
   });
 });
 
-const getMyOrders = catchAsync(async (req: AuthRequest, res: Response) => {
-  const userId = req.user!.userId;
 
-  const result = await OrderService.getMyOrders(userId);
+const getMyOrders = catchAsync(async (req: Request, res: Response) => {
+  const { guestId } = getCartOwner(req, res);
+
+  const result = await OrderService.getMyOrders(guestId as string);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -32,11 +33,11 @@ const getMyOrders = catchAsync(async (req: AuthRequest, res: Response) => {
   });
 });
 
-const getMySingleOrder = catchAsync(async (req: AuthRequest, res: Response) => {
-  const userId = req.user!.userId;
+const getMySingleOrder = catchAsync(async (req: Request, res: Response) => {
+  const { guestId } = getCartOwner(req, res);
   const { id } = req.params;
 
-  const result = await OrderService.getMySingleOrder(userId, id as string);
+  const result = await OrderService.getMySingleOrder(guestId as string, id as string);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -45,6 +46,7 @@ const getMySingleOrder = catchAsync(async (req: AuthRequest, res: Response) => {
     data: result,
   });
 });
+
 
 
 
@@ -143,6 +145,38 @@ const updatePaymentStatus = catchAsync(async (req: any, res: Response) => {
 
 
 
+
+
+
+const getCustomerRanking = catchAsync(async (req: Request, res: Response) => {
+  const result = await OrderService.getCustomerRanking(req.query);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Customer ranking fetched successfully",
+    meta: result.meta,
+    data: result.data,
+  });
+});
+
+
+const deleteOrder = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params as { id: string };
+
+  await OrderService.deleteOrder(id);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Order deleted successfully",
+    data: null,
+  });
+});
+
+
+
+
 export const OrderController = {
   placeOrder,
   getMyOrders,
@@ -152,4 +186,6 @@ export const OrderController = {
   getAllOrders,
   updatePaymentStatus,
   getOrderById,
+  getCustomerRanking,
+  deleteOrder,
 };
