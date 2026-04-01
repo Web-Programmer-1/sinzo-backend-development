@@ -1,10 +1,11 @@
-import fs from "fs";
-import path from "path";
-import puppeteer from "puppeteer";
+import chromium from "@sparticuz/chromium";
+import puppeteer from "puppeteer-core";
 import { buildReceiptHtml } from "./recipt.template";
 
 export const generateReceiptPdf = async (order: any) => {
   const browser = await puppeteer.launch({
+    args: chromium.args,
+    executablePath: await chromium.executablePath(),
     headless: true,
   });
 
@@ -17,17 +18,8 @@ export const generateReceiptPdf = async (order: any) => {
       waitUntil: "networkidle0",
     });
 
-    const receiptsDir = path.join(process.cwd(), "uploads", "receipts");
-
-    if (!fs.existsSync(receiptsDir)) {
-      fs.mkdirSync(receiptsDir, { recursive: true });
-    }
-
-    const fileName = `${order.orderNumber}.pdf`;
-    const filePath = path.join(receiptsDir, fileName);
-
-    await page.pdf({
-      path: filePath,
+    // ⚠️ Vercel এ filesystem write হয় না, তাই filePath বাদ দিয়ে Buffer return করুন
+    const pdfBuffer = await page.pdf({
       format: "A4",
       printBackground: true,
       margin: {
@@ -40,8 +32,8 @@ export const generateReceiptPdf = async (order: any) => {
 
     return {
       html,
-      fileName,
-      filePath,
+      fileName: `${order.orderNumber}.pdf`,
+      pdfBuffer, // এটা দিয়ে S3 তে upload বা directly response করুন
     };
   } finally {
     await browser.close();
