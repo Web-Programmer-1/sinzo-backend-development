@@ -22,13 +22,13 @@ const registerUser = catchAsync(async (req: Request, res: Response) => {
 const loginUser = catchAsync(async (req: Request, res: Response) => {
   const result = await UserServices.loginUser(req.body);
 
-  res.cookie("accessToken", result.accessToken, {
-    httpOnly: true,
-    secure: true, // production এ true
-    sameSite: "none", // production cross-site হলে "none"
-    maxAge: 150 * 24 * 60 * 60 * 1000, // 150 days
-  });
-
+res.cookie("accessToken", result.accessToken, {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+  maxAge: 150 * 24 * 60 * 60 * 1000,
+  path: "/",
+});
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
