@@ -8,7 +8,7 @@ import cookieParser from "cookie-parser";
 
 const app: Application = express();
 app.use(cors({
-    origin: 'http://localhost:3000',
+    origin: ['http://localhost:3000', "https://sinzo-frontend-development.vercel.app"],
     credentials: true
 }));
 
