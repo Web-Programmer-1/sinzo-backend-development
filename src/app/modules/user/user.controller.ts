@@ -24,8 +24,8 @@ const loginUser = catchAsync(async (req: Request, res: Response) => {
 
   res.cookie("accessToken", result.accessToken, {
     httpOnly: true,
-    secure: false, // production এ true
-    sameSite: "lax", // production cross-site হলে "none"
+    secure: true, // production এ true
+    sameSite: "none", // production cross-site হলে "none"
     maxAge: 150 * 24 * 60 * 60 * 1000, // 150 days
   });
 
