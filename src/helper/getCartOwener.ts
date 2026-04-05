@@ -5,6 +5,7 @@ export const getCartOwner = (req: Request, res: Response) => {
   const user = (req as any).user;
 
   if (user?.userId) {
+    
     return {
       userId: user.userId,
       guestId: null,

@@ -1,0 +1,22 @@
+model CheckoutDraft {
+  id String @id @default(uuid())
+
+  guestId String?
+
+  fullName    String?
+  phone       String?
+  email       String?
+  addressLine String?
+
+  deliveryArea  DeliveryAreaType?
+  paymentMethod PaymentMethod?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guestId])
+  @@index([phone])
+
+  @@map("checkout_drafts")
+}
+

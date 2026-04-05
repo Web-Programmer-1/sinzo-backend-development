@@ -2,7 +2,7 @@ import AppError from "../../shared/ApiError";
 import httpStatus from "http-status";
 import { prisma } from "../../shared/Prisma";
 import {
-  CustomerBadge,
+
   DeliveryAreaType,
   OrderStatus,
   PaymentMethod,
@@ -12,9 +12,9 @@ import {
 import { sendEmail } from "../../../util/sendEmail";
 import { orderConfirmationTemplate } from "./order.emailTemplate";
 import config from "../../../config";
-import { validateOrderFraudCheck } from "../../../util/ClientInfo";
 import { updateCustomerRanking } from "../../../util/order_utils/order.util";
 import { recalculateSingleCustomerRanking } from "../../../util/order_utils/reCalculate";
+import { CustomerBadge, TCustomerRankingItem } from "./order.interface";
 
 const getDeliveryCharge = (deliveryArea: DeliveryAreaType) => {
   if (deliveryArea === "INSIDE_CITY") return 80;
@@ -679,58 +679,177 @@ const updatePaymentStatus = async (
 
 
 
+
+const getBadge = (
+  totalSpent: number,
+  deliveredOrders: number
+): CustomerBadge => {
+  if (totalSpent >= 3000) return "VIP";
+  if (deliveredOrders >= 3) return "LOYAL";
+  return "NORMAL";
+};
+
+const getCustomerKey = (userId?: string | null, phone?: string | null) => {
+  if (userId) return `user:${userId}`;
+  return `phone:${phone}`;
+};
+
 const getCustomerRanking = async (query: Record<string, any>) => {
   const page = Number(query.page) || 1;
-  const limit = Number(query.limit) || 20;
+  const limit = Number(query.limit) || 10;
   const skip = (page - 1) * limit;
 
-  const where: any = {};
+  const phoneFilter = query.phone?.trim()?.toLowerCase() || "";
+  const fullNameFilter = query.fullName?.trim()?.toLowerCase() || "";
+  const badgeFilter = query.badge?.trim()?.toUpperCase() || "";
 
-  if (query.badge) {
-    where.badge = query.badge as CustomerBadge;
-  }
-
-  if (query.phone) {
-    where.phone = {
-      contains: query.phone,
-      mode: "insensitive",
-    };
-  }
-
-  if (query.fullName) {
-    where.fullName = {
-      contains: query.fullName,
-      mode: "insensitive",
-    };
-  }
-
-  const data = await prisma.customerRanking.findMany({
-    where,
-    orderBy: [
-      { deliveredOrders: "desc" },
-      { totalSpent: "desc" },
-      { totalOrders: "desc" },
-      { lastOrderAt: "desc" },
-    ],
-    skip,
-    take: limit,
+  const orders = await prisma.order.findMany({
+    select: {
+      id: true,
+      userId: true,
+      phone: true,
+      fullName: true,
+      totalAmount: true,
+      orderStatus: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
   });
 
-  const total = await prisma.customerRanking.count({ where });
+  const customerMap = new Map<string, TCustomerRankingItem>();
+
+  for (const order of orders) {
+    const customerKey = getCustomerKey(order.userId, order.phone);
+
+    if (!customerMap.has(customerKey)) {
+      customerMap.set(customerKey, {
+        customerKey,
+        userId: order.userId ?? null,
+        phone: order.phone,
+        fullName: order.fullName,
+        totalOrders: 0,
+        deliveredOrders: 0,
+        cancelledOrders: 0,
+        totalSpent: 0,
+        badge: "NORMAL",
+        lastOrderAt: order.createdAt,
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
+      });
+    }
+
+    const customer = customerMap.get(customerKey)!;
+
+    customer.totalOrders += 1;
+
+    if (order.orderStatus === OrderStatus.DELIVERED) {
+      customer.deliveredOrders += 1;
+      customer.totalSpent += order.totalAmount;
+    }
+
+    if (order.orderStatus === OrderStatus.CANCELLED) {
+      customer.cancelledOrders += 1;
+    }
+
+    // latest fullName/phone info
+    if (
+      !customer.lastOrderAt ||
+      new Date(order.createdAt) > new Date(customer.lastOrderAt)
+    ) {
+      customer.lastOrderAt = order.createdAt;
+      customer.fullName = order.fullName;
+      customer.phone = order.phone;
+      customer.updatedAt = order.updatedAt;
+    }
+
+    // earliest createdAt
+    if (new Date(order.createdAt) < new Date(customer.createdAt)) {
+      customer.createdAt = order.createdAt;
+    }
+  }
+
+  let customers = Array.from(customerMap.values()).map((item) => ({
+    ...item,
+    badge: getBadge(item.totalSpent, item.deliveredOrders),
+  }));
+
+  // filter by phone
+  if (phoneFilter) {
+    customers = customers.filter((item) =>
+      item.phone.toLowerCase().includes(phoneFilter)
+    );
+  }
+
+  // filter by fullName
+  if (fullNameFilter) {
+    customers = customers.filter((item) =>
+      item.fullName.toLowerCase().includes(fullNameFilter)
+    );
+  }
+
+  // counts before badge filter apply
+  const filterBaseCustomers = [...customers];
+
+  const badgeCounts = {
+    all: filterBaseCustomers.length,
+    NORMAL: filterBaseCustomers.filter((item) => item.badge === "NORMAL").length,
+    VIP: filterBaseCustomers.filter((item) => item.badge === "VIP").length,
+    LOYAL: filterBaseCustomers.filter((item) => item.badge === "LOYAL").length,
+  };
+
+  // badge filter
+  if (badgeFilter && ["NORMAL", "VIP", "LOYAL"].includes(badgeFilter)) {
+    customers = customers.filter((item) => item.badge === badgeFilter);
+  }
+
+  // sort by ranking
+  customers.sort((a, b) => {
+    if (b.deliveredOrders !== a.deliveredOrders) {
+      return b.deliveredOrders - a.deliveredOrders;
+    }
+    if (b.totalSpent !== a.totalSpent) {
+      return b.totalSpent - a.totalSpent;
+    }
+    if (b.totalOrders !== a.totalOrders) {
+      return b.totalOrders - a.totalOrders;
+    }
+    return (
+      new Date(b.lastOrderAt || 0).getTime() -
+      new Date(a.lastOrderAt || 0).getTime()
+    );
+  });
+
+  const total = customers.length;
+  const paginatedCustomers = customers.slice(skip, skip + limit);
+
+  const data = paginatedCustomers.map((item, index) => ({
+    rank: skip + index + 1,
+    phone: item.phone,
+    fullName: item.fullName,
+    totalOrders: item.totalOrders,
+    deliveredOrders: item.deliveredOrders,
+    cancelledOrders: item.cancelledOrders,
+    totalSpent: item.totalSpent,
+    badge: item.badge,
+    lastOrderAt: item.lastOrderAt,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  }));
 
   return {
     meta: {
       page,
       limit,
       total,
+      totalPage: Math.ceil(total / limit),
     },
-    data: data.map((item, index) => ({
-      rank: skip + index + 1,
-      ...item,
-    })),
+    filterCounts: badgeCounts,
+    data,
   };
 };
-
 
 
 
