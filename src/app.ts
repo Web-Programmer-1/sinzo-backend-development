@@ -7,11 +7,26 @@ import router from './app/routes';
 import cookieParser from "cookie-parser";
 
 const app: Application = express();
-app.use(cors({
-    origin: ['http://localhost:3000', "https://sinzo-frontend-development.vercel.app"],
-    credentials: true
-}));
 
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://sinzo-frontend-development.vercel.app",
+];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
+  })
+);
 //parser
 app.use(express.json());
 app.use(cookieParser());
