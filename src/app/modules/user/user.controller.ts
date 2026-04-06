@@ -24,11 +24,10 @@ const loginUser = catchAsync(async (req: Request, res: Response) => {
 
 res.cookie("accessToken", result.accessToken, {
   httpOnly: true,
-  secure: true,
-  sameSite: "none",
-  domain: ".sinzo.com", // 🔥 important
-  path: "/",
+  secure: process.env.NODE_ENV === "production",
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
   maxAge: 150 * 24 * 60 * 60 * 1000,
+  path: "/",
 });
   sendResponse(res, {
     statusCode: httpStatus.OK,
