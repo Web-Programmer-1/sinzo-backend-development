@@ -4,6 +4,7 @@ import { prisma } from "../../shared/Prisma";
 import {
 
   DeliveryAreaType,
+  ManualPaymentVerificationStatus,
   OrderStatus,
   PaymentMethod,
   PaymentStatus,
@@ -14,7 +15,7 @@ import { orderConfirmationTemplate } from "./order.emailTemplate";
 import config from "../../../config";
 import { updateCustomerRanking } from "../../../util/order_utils/order.util";
 import { recalculateSingleCustomerRanking } from "../../../util/order_utils/reCalculate";
-import { CustomerBadge, TCustomerRankingItem } from "./order.interface";
+import { CustomerBadge, TCustomerRankingItem, TPlaceOrderPayload } from "./order.interface";
 
 const getDeliveryCharge = (deliveryArea: DeliveryAreaType) => {
   if (deliveryArea === "INSIDE_CITY") return 80;
@@ -33,22 +34,49 @@ const generateOrderNumber = () => {
 
 
 
-// const placeOrder = async (userId: string, payload: any) => {
-//   if (!userId) {
-//     throw new AppError(httpStatus.UNAUTHORIZED, "User ID is required");
+
+
+
+
+
+
+
+// const placeOrder = async (guestId: string, payload: any,   ) => {
+
+//   if (!guestId) {
+//     throw new AppError(httpStatus.UNAUTHORIZED, "Guest ID is required");
 //   }
 
-//   const { fullName, phone, email, country, city, area, addressLine, 
-//           note, deliveryArea, paymentMethod } = payload;
+//   const {
+//     fullName,
+//     phone,
+//     email,
+//     country,
+//     city,
+//     area,
+//     addressLine,
+//     note,
+//     deliveryArea,
+//     paymentMethod,
+//   } = payload;
+
+
 
 //   if (!fullName || !phone || !addressLine || !deliveryArea) {
-//     throw new AppError(httpStatus.BAD_REQUEST, 
-//       "Full name, phone, address line and delivery area are required");
+//     throw new AppError(
+//       httpStatus.BAD_REQUEST,
+//       "Full name, phone, address line and delivery area are required"
+//     );
 //   }
 
-//   // ✅ একটি query তে cart + product একসাথে
+
+
+
+
+
+
 //   const cartItems = await prisma.cart.findMany({
-//     where: { userId },
+//     where: { guestId },
 //     include: { product: true },
 //   });
 
@@ -56,31 +84,43 @@ const generateOrderNumber = () => {
 //     throw new AppError(httpStatus.BAD_REQUEST, "Cart is empty");
 //   }
 
-//   // ✅ Validation লুপ — DB call নেই, শুধু memory check
 //   for (const item of cartItems) {
 //     if (!item.product) {
 //       throw new AppError(httpStatus.NOT_FOUND, "Product not found");
 //     }
+
 //     if (item.product.stock < item.quantity) {
-//       throw new AppError(httpStatus.BAD_REQUEST, 
-//         `Not enough stock for: ${item.product.title}`);
+//       throw new AppError(
+//         httpStatus.BAD_REQUEST,
+//         `Not enough stock for: ${item.product.title}`
+//       );
 //     }
 //   }
 
-//   // ✅ সব calculation transaction এর বাইরে
-//   const subtotal = cartItems.reduce((sum, item) => 
-//     sum + item.product.price * item.quantity, 0);
+//   const subtotal = cartItems.reduce(
+//     (sum, item) => sum + item.product.price * item.quantity,
+//     0
+//   );
 
 //   const deliveryCharge = getDeliveryCharge(deliveryArea as DeliveryAreaType);
 //   const totalAmount = subtotal + deliveryCharge;
 //   const orderNumber = generateOrderNumber();
 
-//   // ✅ Transaction যতটা সম্ভব ছোট রাখো
 //   const createdOrder = await prisma.$transaction(async (tx) => {
+
 //     const order = await tx.order.create({
 //       data: {
-//         orderNumber, userId, fullName, phone, email,
-//         country, city, area, addressLine, note, deliveryArea,
+//         orderNumber,
+//         guestId,
+//         fullName,
+//         phone,
+//         email,
+//         country,
+//         city,
+//         area,
+//         addressLine,
+//         note,
+//         deliveryArea,
 //         deliveryCharge,
 //         paymentMethod: paymentMethod || PaymentMethod.CASH_ON_DELIVERY,
 //         paymentStatus: PaymentStatus.UNPAID,
@@ -94,7 +134,16 @@ const generateOrderNumber = () => {
 //       },
 //     });
 
-//     // ✅ Bulk insert — একটি query তে সব items
+
+//     await updateCustomerRanking({
+//   userId: order.userId,
+//   fullName: order.fullName,
+//   phone: order.phone,
+//   totalAmount: order.totalAmount,
+//   orderStatus: order.orderStatus,
+//   createdAt: order.createdAt,
+// });
+
 //     await tx.orderItem.createMany({
 //       data: cartItems.map((item) => ({
 //         orderId: order.id,
@@ -110,7 +159,6 @@ const generateOrderNumber = () => {
 //       })),
 //     });
 
-//     // ✅ Status history
 //     await tx.orderStatusHistory.create({
 //       data: {
 //         orderId: order.id,
@@ -119,23 +167,26 @@ const generateOrderNumber = () => {
 //       },
 //     });
 
-//     // ✅ N+1 দূর করো — একটি raw query তে সব stock update
-//     // Prisma raw query দিয়ে bulk update
-//     const stockUpdates = cartItems.map((item) =>
-//       tx.product.update({
-//         where: { id: item.productId },
-//         data: { stock: { decrement: item.quantity } },
-//       })
+//     await Promise.all(
+//       cartItems.map((item) =>
+//         tx.product.update({
+//           where: { id: item.productId },
+//           data: {
+//             stock: {
+//               decrement: item.quantity,
+//             },
+//           },
+//         })
+//       )
 //     );
-//     await Promise.all(stockUpdates); // ✅ parallel execute
 
-//     // ✅ Cart clear
-//     await tx.cart.deleteMany({ where: { userId } });
+//     await tx.cart.deleteMany({
+//       where: { guestId },
+//     });
 
 //     return order;
 //   });
 
- 
 //   const finalOrder = await prisma.order.findUnique({
 //     where: { id: createdOrder.id },
 //     include: {
@@ -143,7 +194,6 @@ const generateOrderNumber = () => {
 //       statusHistory: { orderBy: { createdAt: "asc" } },
 //     },
 //   });
-
 
 //   if (finalOrder?.email) {
 //     setImmediate(() => {
@@ -165,8 +215,7 @@ const generateOrderNumber = () => {
 
 
 
-const placeOrder = async (guestId: string, payload: any,   ) => {
-
+const placeOrder = async (guestId: string, payload: TPlaceOrderPayload) => {
   if (!guestId) {
     throw new AppError(httpStatus.UNAUTHORIZED, "Guest ID is required");
   }
@@ -182,9 +231,8 @@ const placeOrder = async (guestId: string, payload: any,   ) => {
     note,
     deliveryArea,
     paymentMethod,
+    manualPayment,
   } = payload;
-
-
 
   if (!fullName || !phone || !addressLine || !deliveryArea) {
     throw new AppError(
@@ -193,11 +241,23 @@ const placeOrder = async (guestId: string, payload: any,   ) => {
     );
   }
 
+  const finalPaymentMethod =
+    paymentMethod || PaymentMethod.CASH_ON_DELIVERY;
 
-
-
-
-
+  // manual payment validation
+  if (finalPaymentMethod === PaymentMethod.ONLINE_PAYMENT) {
+    if (
+      !manualPayment ||
+      !manualPayment.gateway ||
+      !manualPayment.senderNumber ||
+      !manualPayment.transactionId
+    ) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        "Manual payment info is required for online payment"
+      );
+    }
+  }
 
   const cartItems = await prisma.cart.findMany({
     where: { guestId },
@@ -231,6 +291,10 @@ const placeOrder = async (guestId: string, payload: any,   ) => {
   const orderNumber = generateOrderNumber();
 
   const createdOrder = await prisma.$transaction(async (tx) => {
+    const initialPaymentStatus =
+      finalPaymentMethod === PaymentMethod.ONLINE_PAYMENT
+        ? PaymentStatus.PENDING
+        : PaymentStatus.UNPAID;
 
     const order = await tx.order.create({
       data: {
@@ -246,8 +310,8 @@ const placeOrder = async (guestId: string, payload: any,   ) => {
         note,
         deliveryArea,
         deliveryCharge,
-        paymentMethod: paymentMethod || PaymentMethod.CASH_ON_DELIVERY,
-        paymentStatus: PaymentStatus.UNPAID,
+        paymentMethod: finalPaymentMethod,
+        paymentStatus: initialPaymentStatus,
         orderStatus: OrderStatus.PENDING,
         subtotal,
         discountAmount: 0,
@@ -258,15 +322,15 @@ const placeOrder = async (guestId: string, payload: any,   ) => {
       },
     });
 
-
+    // customer ranking update
     await updateCustomerRanking({
-  userId: order.userId,
-  fullName: order.fullName,
-  phone: order.phone,
-  totalAmount: order.totalAmount,
-  orderStatus: order.orderStatus,
-  createdAt: order.createdAt,
-});
+      userId: order.userId,
+      fullName: order.fullName,
+      phone: order.phone,
+      totalAmount: order.totalAmount,
+      orderStatus: order.orderStatus,
+      createdAt: order.createdAt,
+    });
 
     await tx.orderItem.createMany({
       data: cartItems.map((item) => ({
@@ -290,6 +354,24 @@ const placeOrder = async (guestId: string, payload: any,   ) => {
         note: "Order placed successfully",
       },
     });
+
+    // create manual payment submission if online payment
+    if (
+      finalPaymentMethod === PaymentMethod.ONLINE_PAYMENT &&
+      manualPayment
+    ) {
+      await tx.manualPaymentSubmission.create({
+        data: {
+          orderId: order.id,
+          gateway: manualPayment.gateway,
+          senderNumber: manualPayment.senderNumber,
+          transactionId: manualPayment.transactionId,
+          paidAmount: manualPayment.paidAmount ?? null,
+          note: manualPayment.note ?? null,
+          verificationStatus: ManualPaymentVerificationStatus.PENDING,
+        },
+      });
+    }
 
     await Promise.all(
       cartItems.map((item) =>
@@ -315,6 +397,7 @@ const placeOrder = async (guestId: string, payload: any,   ) => {
     where: { id: createdOrder.id },
     include: {
       items: true,
+      manualPayment: true,
       statusHistory: { orderBy: { createdAt: "asc" } },
     },
   });
@@ -329,6 +412,14 @@ const placeOrder = async (guestId: string, payload: any,   ) => {
 
   return finalOrder;
 };
+
+
+
+
+
+
+
+
 
 
 
@@ -389,6 +480,7 @@ const getMyOrders = async (guestId: string) => {
     where: { guestId },
     include: {
       items: true,
+      manualPayment:true,
     },
     orderBy: {
       createdAt: "desc",
@@ -406,12 +498,14 @@ const getMySingleOrder = async (guestId: string, orderId: string) => {
     },
     include: {
       items: true,
+      manualPayment:true,
       statusHistory: {
         orderBy: {
           createdAt: "asc",
         },
       },
     },
+
   });
 
   if (!result) {
@@ -426,6 +520,7 @@ const trackOrder = async (orderNumber: string) => {
     where: { orderNumber },
     include: {
       items: true,
+      manualPayment:true,
       statusHistory: {
         orderBy: {
           createdAt: "asc",
@@ -493,6 +588,7 @@ const getAllOrders = async (query: Record<string, any>) => {
       include: {
         user: true,
         items: true,
+        manualPayment:true,
       },
       orderBy: {
         createdAt: "desc",
@@ -581,7 +677,7 @@ const getOrderById = async (orderId: string) => {
       },
 
       items: true,
-
+      manualPayment:true,
       statusHistory: {
         orderBy: {
           createdAt: "asc",

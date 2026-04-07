@@ -8,6 +8,10 @@ import { orderRoutes } from '../modules/order/order.route';
 import { steadfastRoutes } from '../modules/steadfast/steadfast.route';
 import { WishlistRoutes } from '../modules/wishlist/wishlist.route';
 import { CheckoutDraftRoutes } from '../modules/checkoutdraf/checkoutdraf.route';
+import { DashboardRoutes } from '../modules/dashboard/dashboard.routes';
+import { BannerRoutes } from '../modules/banner/banner.route';
+import { SettingRoutes } from '../modules/setting/setting.route';
+import { ManualPaymentRoutes } from '../modules/manual-payment/payment.route';
 
 
 const router = express.Router();
@@ -48,6 +52,22 @@ const moduleRoutes = [
     {
         path: '/checkoutdraf',
         route: CheckoutDraftRoutes,
+    },
+    {
+        path: '/dashboard',
+        route: DashboardRoutes,
+    },
+    {
+        path: '/banner',
+        route: BannerRoutes,
+    },
+    {
+        path: '/setting',
+        route: SettingRoutes,
+    },
+    {
+        path: '/payment',
+        route: ManualPaymentRoutes,
     },
 
 ];

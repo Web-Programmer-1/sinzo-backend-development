@@ -17,6 +17,7 @@ enum PaymentMethod {
 
 enum PaymentStatus {
   UNPAID
+  PENDING
   PAID
   PARTIAL
   REFUNDED
@@ -43,6 +44,32 @@ enum DeliveryAreaType {
   INSIDE_CITY
   OUTSIDE_CITY
 }
+
+
+
+
+
+enum ManualPaymentGateway {
+  BKASH
+  NAGAD
+  ROCKET
+  BANK
+}
+
+enum ManualPaymentVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+
+
+
+
+
+
+
+
 
 model Order {
   id           String @id @default(uuid())
@@ -100,6 +127,7 @@ model Order {
 
   items         OrderItem[]
   statusHistory OrderStatusHistory[]
+    manualPayment ManualPaymentSubmission?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -159,4 +187,44 @@ model OrderStatusHistory {
   @@index([orderId])
 
   @@map("order_status_history")
+}
+
+
+
+
+
+
+
+
+
+
+
+model ManualPaymentSubmission {
+  id String @id @default(uuid())
+
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  gateway       ManualPaymentGateway
+  senderNumber  String
+  transactionId String
+  paidAmount    Float?
+  note          String?
+
+  verificationStatus ManualPaymentVerificationStatus @default(PENDING)
+  adminNote          String?
+  verifiedAt         DateTime?
+  rejectedAt         DateTime?
+
+  verifiedById String?
+  verifiedBy   User? @relation("ManualPaymentVerifiedBy", fields: [verifiedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([gateway])
+  @@index([senderNumber])
+  @@index([transactionId])
+  @@index([verificationStatus])
+  @@map("manual_payment_submissions")
 }
