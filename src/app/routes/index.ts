@@ -12,6 +12,7 @@ import { DashboardRoutes } from '../modules/dashboard/dashboard.routes';
 import { BannerRoutes } from '../modules/banner/banner.route';
 import { SettingRoutes } from '../modules/setting/setting.route';
 import { ManualPaymentRoutes } from '../modules/manual-payment/payment.route';
+import { SystemRoutes } from '../modules/systerm/systerm.route';
 
 
 const router = express.Router();
@@ -69,6 +70,11 @@ const moduleRoutes = [
         path: '/payment',
         route: ManualPaymentRoutes,
     },
+
+  {
+    path: '/system',
+    route: SystemRoutes,
+  },
 
 ];
 
