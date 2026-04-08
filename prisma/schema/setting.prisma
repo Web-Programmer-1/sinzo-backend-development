@@ -1,9 +1,13 @@
 model Setting {
-  id   String  @id @default(uuid())
-  logo String?
+  id           String   @id @default(uuid())
+  logo         String?
+
+  bkashNumber  String?  // bKash send money number
+  nagadNumber  String?  // Nagad send money number
+
+  createdAt    DateTime @default(now())
+
 }
-
-
 
 
 model Banner {
@@ -12,4 +16,16 @@ model Banner {
   sortOrder  Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+
+
+model PaymentSetting {
+  id           String   @id @default(uuid())
+
+  bkashNumber  String?
+  nagadNumber  String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

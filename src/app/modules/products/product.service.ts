@@ -169,117 +169,6 @@ const createProduct = async (payload: TProductPayload) => {
 
 
 
-
-
-
-
-
-// const createProduct = async (payload: TProductPayload) => {
-//   const {
-//     title,
-//     slug,
-//     description,
-//     cardShortTitle,
-//     price,
-//     stock,
-//     badge,
-//     categoryId,
-//     productCardImage,
-//     colors,
-//     sizes,
-//     sizeType,
-//     sizeGuideImage,
-//     sizeGuideData,
-//     averageRating,
-//     totalReviews,
-//     galleryImages,
-//   } = payload;
-
-//   // ✅ Step 1: সব field validation একসাথে — কোনো DB call নেই
-//   if (!title || !categoryId || !productCardImage || !price || Number(price) <= 0) {
-//     throw new AppError(
-//       httpStatus.BAD_REQUEST,
-//       !title
-//         ? "Title is required"
-//         : !categoryId
-//           ? "Category id is required"
-//           : !productCardImage
-//             ? "Product card image is required"
-//             : "Price must be greater than 0"
-//     );
-//   }
-
-//   // ✅ Step 2: Category + Slug check একসাথে parallel — 2 query → 1 round trip
-//   const [category, existingSlug] = await Promise.all([
-//     prisma.category.findUnique({
-//       where: { id: categoryId },
-//       select: { id: true }, // ✅ শুধু id দরকার, সব field আনার দরকার নেই
-//     }),
-//     slug
-//       ? prisma.product.findUnique({
-//           where: { slug },
-//           select: { id: true }, // ✅ শুধু id দরকার
-//         })
-//       : Promise.resolve(null),
-//   ]);
-
-//   if (!category) {
-//     throw new AppError(httpStatus.NOT_FOUND, "Category not found");
-//   }
-
-//   if (existingSlug) {
-//     throw new AppError(httpStatus.BAD_REQUEST, "Product slug already exists");
-//   }
-
-//   // ✅ Step 3: Product create
-//   const result = await prisma.product.create({
-//     data: {
-//       title,
-//       slug: slug || null,
-//       description: description || null,
-//       price: Number(price),
-//       cardShortTitle:String(cardShortTitle) || null,
-//       stock: stock ? Number(stock) : 0,
-//       badge: badge || null,
-//       categoryId,
-//       productCardImage,
-//       galleryImages: galleryImages || [],
-      
-//       sizes: sizes || [],
-//       sizeType: sizeType || null,
-//       sizeGuideImage: sizeGuideImage || null,
-//       sizeGuideData: sizeGuideData ?? null,
-//       averageRating: averageRating ? Number(averageRating) : 0,
-//       totalReviews: totalReviews ? Number(totalReviews) : 0,
-//     },
-//     include: {
-//       category: {
-//         select: { id: true,
-//          title: true,
-//           thumbnailImage: true,
-//            },
-//       },
-//     },
-//   });
-
-//   return result;
-// };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 const getAllProducts = async (query: any) => {
   const {
     searchTerm,
@@ -295,7 +184,6 @@ const getAllProducts = async (query: any) => {
 
   const andConditions: any[] = [];
 
-  // search title
   if (searchTerm) {
     andConditions.push({
       title: {
@@ -305,14 +193,12 @@ const getAllProducts = async (query: any) => {
     });
   }
 
-  // categoryId filter
   if (categoryId) {
     andConditions.push({
-      categoryId: categoryId,
+      categoryId,
     });
   }
 
-  // price range
   if (minPrice || maxPrice) {
     andConditions.push({
       price: {
@@ -322,20 +208,10 @@ const getAllProducts = async (query: any) => {
     });
   }
 
-  // size filter
   if (size) {
     andConditions.push({
       sizes: {
         has: size,
-      },
-    });
-  }
-
-  // color filter
-  if (color) {
-    andConditions.push({
-      colors: {
-        has: color,
       },
     });
   }
@@ -346,38 +222,68 @@ const getAllProducts = async (query: any) => {
 
   if (sort === "oldest") {
     orderBy = { createdAt: "asc" };
+  } else if (sort === "price_asc") {
+    orderBy = { price: "asc" };
+  } else if (sort === "price_high") {
+    orderBy = { price: "desc" };
   }
 
-  const skip = (Number(page) - 1) * Number(limit);
-
-  const products = await prisma.product.findMany({
+  // first fetch all matched products except color
+  const allProducts = await prisma.product.findMany({
     where: whereConditions,
     orderBy,
-    skip,
-    take: Number(limit),
     select: {
       id: true,
       slug: true,
       productCardImage: true,
       title: true,
       price: true,
-      cardShortTitle:true,
+      cardShortTitle: true,
       badge: true,
       stock: true,
-      description:true,
+      description: true,
       totalReviews: true,
+      colorVariants: true,
       category: {
         select: {
           title: true,
           thumbnailImage: true,
         },
       },
+      createdAt: true,
     },
   });
 
-  const total = await prisma.product.count({
-    where: whereConditions,
-  });
+  // color filter from colorVariants json
+  let filteredProducts = allProducts;
+
+  if (color) {
+    const normalizedQueryColor = String(color).trim().toLowerCase();
+
+    filteredProducts = allProducts.filter((product: any) => {
+      const variants = product?.colorVariants;
+
+      if (!Array.isArray(variants)) return false;
+
+      return variants.some((variant: any) => {
+        const variantColor = String(variant?.color || "")
+          .trim()
+          .toLowerCase();
+
+        return variantColor === normalizedQueryColor;
+      });
+    });
+  }
+
+  const total = filteredProducts.length;
+
+  const skip = (Number(page) - 1) * Number(limit);
+  const paginatedProducts = filteredProducts.slice(
+    skip,
+    skip + Number(limit)
+  );
+
+  const finalData = paginatedProducts.map(({ colorVariants, createdAt, ...rest }) => rest);
 
   return {
     meta: {
@@ -385,9 +291,12 @@ const getAllProducts = async (query: any) => {
       limit: Number(limit),
       total,
     },
-    data: products,
+    data: finalData,
   };
 };
+
+
+
 
 
 
@@ -463,102 +372,6 @@ const getSingleProduct = async (slug: string) => {
 
 
 
-
-
-
-// const updateProduct = async (id: string, payload: Partial<TProductPayload>) => {
-//   const existingProduct = await prisma.product.findUnique({
-//     where: { id },
-//     select: {
-//       id: true,
-//       slug: true,
-//       categoryId: true,
-//     },
-//   });
-
-//   if (!existingProduct) {
-//     throw new AppError(httpStatus.NOT_FOUND, "Product not found");
-//   }
-
-//   if (payload.categoryId) {
-//     const category = await prisma.category.findUnique({
-//       where: { id: payload.categoryId },
-//       select: { id: true },
-//     });
-
-//     if (!category) {
-//       throw new AppError(httpStatus.NOT_FOUND, "Category not found");
-//     }
-//   }
-
-//   if (payload.slug && payload.slug !== existingProduct.slug) {
-//     const existingSlug = await prisma.product.findUnique({
-//       where: { slug: payload.slug },
-//       select: { id: true },
-//     });
-
-//     if (existingSlug) {
-//       throw new AppError(httpStatus.BAD_REQUEST, "Product slug already exists");
-//     }
-//   }
-
-//   if (payload.price !== undefined && Number(payload.price) <= 0) {
-//     throw new AppError(httpStatus.BAD_REQUEST, "Price must be greater than 0");
-//   }
-
-//   if (payload.stock !== undefined && Number(payload.stock) < 0) {
-//     throw new AppError(httpStatus.BAD_REQUEST, "Stock cannot be negative");
-//   }
-
-//   const result = await prisma.product.update({
-//     where: { id },
-//     data: {
-//       title: payload.title ?? undefined,
-//       slug: payload.slug ?? undefined,
-//       description: payload.description ?? undefined,
-//       price: payload.price !== undefined ? Number(payload.price) : undefined,
-//       stock: payload.stock !== undefined ? Number(payload.stock) : undefined,
-//       badge: payload.badge ?? undefined,
-//       categoryId: payload.categoryId ?? undefined,
-//       productCardImage: payload.productCardImage ?? undefined,
-//       galleryImages: payload.galleryImages ?? undefined,
-//       colorVariants:
-//       sizes: payload.sizes ?? undefined,
-//       sizeType: payload.sizeType ?? undefined,
-//       sizeGuideImage: payload.sizeGuideImage ?? undefined,
-//       sizeGuideData:
-//         payload.sizeGuideData !== undefined ? payload.sizeGuideData : undefined,
-//       averageRating:
-//         payload.averageRating !== undefined
-//           ? Number(payload.averageRating)
-//           : undefined,
-//       totalReviews:
-//         payload.totalReviews !== undefined
-//           ? Number(payload.totalReviews)
-//           : undefined,
-//     },
-//     include: {
-//       category: {
-//         select: {
-//           id: true,
-//           title: true,
-//           thumbnailImage: true,
-//         },
-//       },
-//     },
-//   });
-
-//   return result;
-// };
-
-
-
-
-
-
-
-
-
 const updateProduct = async (id: string, payload: Partial<TProductPayload>) => {
   const existingProduct = await prisma.product.findUnique({
     where: { id },
@@ -566,14 +379,13 @@ const updateProduct = async (id: string, payload: Partial<TProductPayload>) => {
       id: true,
       slug: true,
       categoryId: true,
+      colorVariants: true,
     },
   });
 
   if (!existingProduct) {
     throw new AppError(httpStatus.NOT_FOUND, "Product not found");
   }
-
-  const validatedColorVariants = validateColorVariants(payload.colorVariants);
 
   const [category, existingSlug] = await Promise.all([
     payload.categoryId
@@ -607,6 +419,44 @@ const updateProduct = async (id: string, payload: Partial<TProductPayload>) => {
     throw new AppError(httpStatus.BAD_REQUEST, "Stock cannot be negative");
   }
 
+  const existingColorVariants = Array.isArray(existingProduct.colorVariants)
+    ? (existingProduct.colorVariants as Array<{ color: string; images: string[] }>)
+    : [];
+
+  let mergedColorVariants: Array<{ color: string; images: string[] }> | undefined =
+    undefined;
+
+  if (payload.colorVariants !== undefined) {
+    const incomingColorVariants = Array.isArray(payload.colorVariants)
+      ? (payload.colorVariants as Array<{ color: string; images?: string[] }>)
+      : [];
+
+    mergedColorVariants = incomingColorVariants.map((variant) => {
+      const existingVariant = existingColorVariants.find(
+        (item) => item.color === variant.color
+      );
+
+      const incomingImages = Array.isArray(variant.images) ? variant.images : [];
+      const oldImages = Array.isArray(existingVariant?.images)
+        ? existingVariant!.images
+        : [];
+
+      return {
+        color: variant.color,
+        images: incomingImages.length > 0 ? incomingImages : oldImages,
+      };
+    });
+
+    for (const variant of mergedColorVariants) {
+      if (!variant.images || variant.images.length === 0) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          `Images are required for color ${variant.color}`
+        );
+      }
+    }
+  }
+
   const result = await prisma.product.update({
     where: { id },
     data: {
@@ -624,21 +474,26 @@ const updateProduct = async (id: string, payload: Partial<TProductPayload>) => {
       stock: payload.stock !== undefined ? Number(payload.stock) : undefined,
       badge: payload.badge ?? undefined,
       categoryId: payload.categoryId ?? undefined,
-      productCardImage: payload.productCardImage ?? undefined,
+      productCardImage:
+        payload.productCardImage !== undefined
+          ? payload.productCardImage
+          : undefined,
       galleryImages:
         payload.galleryImages !== undefined
           ? Array.isArray(payload.galleryImages)
             ? payload.galleryImages
             : []
           : undefined,
-      colorVariants: validatedColorVariants,
+      colorVariants:
+        mergedColorVariants !== undefined ? mergedColorVariants : undefined,
       sizes:
         payload.sizes !== undefined
           ? Array.isArray(payload.sizes)
             ? payload.sizes
             : []
           : undefined,
-      sizeType: payload.sizeType !== undefined ? payload.sizeType || null : undefined,
+      sizeType:
+        payload.sizeType !== undefined ? payload.sizeType || null : undefined,
       sizeGuideImage:
         payload.sizeGuideImage !== undefined
           ? payload.sizeGuideImage || null
@@ -667,6 +522,120 @@ const updateProduct = async (id: string, payload: Partial<TProductPayload>) => {
 
   return result;
 };
+
+
+
+
+
+
+// const updateProduct = async (id: string, payload: Partial<TProductPayload>) => {
+//   const existingProduct = await prisma.product.findUnique({
+//     where: { id },
+//     select: {
+//       id: true,
+//       slug: true,
+//       categoryId: true,
+//     },
+//   });
+
+//   if (!existingProduct) {
+//     throw new AppError(httpStatus.NOT_FOUND, "Product not found");
+//   }
+
+//   const validatedColorVariants = validateColorVariants(payload.colorVariants);
+
+//   const [category, existingSlug] = await Promise.all([
+//     payload.categoryId
+//       ? prisma.category.findUnique({
+//           where: { id: payload.categoryId },
+//           select: { id: true },
+//         })
+//       : Promise.resolve(null),
+
+//     payload.slug && payload.slug !== existingProduct.slug
+//       ? prisma.product.findUnique({
+//           where: { slug: payload.slug },
+//           select: { id: true },
+//         })
+//       : Promise.resolve(null),
+//   ]);
+
+//   if (payload.categoryId && !category) {
+//     throw new AppError(httpStatus.NOT_FOUND, "Category not found");
+//   }
+
+//   if (existingSlug) {
+//     throw new AppError(httpStatus.BAD_REQUEST, "Product slug already exists");
+//   }
+
+//   if (payload.price !== undefined && Number(payload.price) <= 0) {
+//     throw new AppError(httpStatus.BAD_REQUEST, "Price must be greater than 0");
+//   }
+
+//   if (payload.stock !== undefined && Number(payload.stock) < 0) {
+//     throw new AppError(httpStatus.BAD_REQUEST, "Stock cannot be negative");
+//   }
+
+//   const result = await prisma.product.update({
+//     where: { id },
+//     data: {
+//       title: payload.title !== undefined ? payload.title.trim() : undefined,
+//       slug: payload.slug !== undefined ? payload.slug.trim() || null : undefined,
+//       description:
+//         payload.description !== undefined
+//           ? payload.description.trim() || null
+//           : undefined,
+//       cardShortTitle:
+//         payload.cardShortTitle !== undefined
+//           ? payload.cardShortTitle.trim() || null
+//           : undefined,
+//       price: payload.price !== undefined ? Number(payload.price) : undefined,
+//       stock: payload.stock !== undefined ? Number(payload.stock) : undefined,
+//       badge: payload.badge ?? undefined,
+//       categoryId: payload.categoryId ?? undefined,
+//       productCardImage: payload.productCardImage ?? undefined,
+//       galleryImages:
+//         payload.galleryImages !== undefined
+//           ? Array.isArray(payload.galleryImages)
+//             ? payload.galleryImages
+//             : []
+//           : undefined,
+//       colorVariants: validatedColorVariants,
+//       sizes:
+//         payload.sizes !== undefined
+//           ? Array.isArray(payload.sizes)
+//             ? payload.sizes
+//             : []
+//           : undefined,
+//       sizeType: payload.sizeType !== undefined ? payload.sizeType || null : undefined,
+//       sizeGuideImage:
+//         payload.sizeGuideImage !== undefined
+//           ? payload.sizeGuideImage || null
+//           : undefined,
+//       sizeGuideData:
+//         payload.sizeGuideData !== undefined ? payload.sizeGuideData : undefined,
+//       averageRating:
+//         payload.averageRating !== undefined
+//           ? Number(payload.averageRating)
+//           : undefined,
+//       totalReviews:
+//         payload.totalReviews !== undefined
+//           ? Number(payload.totalReviews)
+//           : undefined,
+//     },
+//     include: {
+//       category: {
+//         select: {
+//           id: true,
+//           title: true,
+//           thumbnailImage: true,
+//         },
+//       },
+//     },
+//   });
+
+//   return result;
+// };
 
 
 

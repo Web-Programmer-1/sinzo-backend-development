@@ -3,11 +3,13 @@ import { UserControllers } from "./user.controller";
 import authGuard from "../../middlewares/AuthGurd";
 import { UserRole } from "@prisma/client";
 import { uploadImage } from "../../image-uploader/product.upload";
+import { loginLimiter } from "../../../util/LoginAttempt";
 
 const router = Router();
 
 router.post("/register", UserControllers.registerUser);
-router.post("/login", UserControllers.loginUser);
+router.post("/login",loginLimiter, UserControllers.loginUser);
+router.post("/logout", UserControllers.logoutUser);
 router.post("/forgot-password", UserControllers.forgotPassword);
 
 router.get("/me", authGuard("ADMIN", "CUSTOMER"), UserControllers.getMe);

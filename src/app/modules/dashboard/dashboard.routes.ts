@@ -12,4 +12,14 @@ router.get(
   DashboardController.getOverview
 );
 
+
+
+
+router.get(
+  "/customer/dashboard-overview",
+  authGuard("CUSTOMER", "ADMIN"),
+  DashboardController.getCustomerDashboardOverview
+)
+
+
 export const DashboardRoutes = router;

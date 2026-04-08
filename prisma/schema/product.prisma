@@ -52,6 +52,7 @@ model Product {
 
   // color system
    colorVariants Json?
+     colors           ProductColor[]   // <-- add this
 
   // size system
   sizes    String[] // ["S", "M", "L", "XL"]

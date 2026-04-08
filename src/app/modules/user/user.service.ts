@@ -291,6 +291,10 @@ const unblockUser = async (id: string) => {
   return result;
 };
 
+const logoutUser = async () => {
+  return null;
+};
+
 export const UserServices = {
   registerUser,
   loginUser,
@@ -302,4 +306,5 @@ export const UserServices = {
   deleteUser,
   blockUser,
   unblockUser,
+  logoutUser,
 };

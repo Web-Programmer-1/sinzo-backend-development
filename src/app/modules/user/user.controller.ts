@@ -140,6 +140,28 @@ const unblockUser = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+
+
+const logoutUser = catchAsync(async (req: Request, res: Response) => {
+  await UserServices.logoutUser();
+
+  const isProduction = process.env.NODE_ENV === "production";
+
+  res.clearCookie("accessToken", {
+    httpOnly: true,
+    secure: isProduction ? true : false,
+    sameSite: isProduction ? "none" : "lax",
+    path: "/",
+  });
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "User logged out successfully",
+    data: null,
+  });
+});
+
 export const UserControllers = {
   registerUser,
   loginUser,
@@ -151,4 +173,5 @@ export const UserControllers = {
   deleteUser,
   blockUser,
   unblockUser,
+  logoutUser,
 };

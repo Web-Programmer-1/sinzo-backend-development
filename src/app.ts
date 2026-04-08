@@ -5,6 +5,8 @@ import notFound from './app/middlewares/notFound';
 import config from './config';
 import router from './app/routes';
 import cookieParser from "cookie-parser";
+import helmet from "helmet";
+import rateLimit from 'express-rate-limit';
 
 const app: Application = express();
 
@@ -12,6 +14,17 @@ const allowedOrigins = [
   "http://localhost:3000",
   "https://sinzo-frontend-development.vercel.app",
 ];
+
+app.use(helmet());
+
+
+
+app.use(rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 60,
+}));
+
+
 
 app.use(
   cors({

@@ -9,6 +9,8 @@ import {
 } from "@prisma/client";
 import { prisma } from "../../shared/Prisma";
 import { getDateRange } from "../../../util/GetDataRange";
+import AppError from "../../shared/ApiError";
+import { HttpStatusCode } from "axios";
 
 const LOW_STOCK_THRESHOLD = 2;
 
@@ -617,6 +619,403 @@ const formatOrdersTrend = (
   }));
 };
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+type TCustomerDashboardOverviewParams = {
+  userId?: string | null;
+  guestId?: string | null;
+};
+
+const MONTHS_TO_SHOW = 12;
+const RECENT_ORDERS_LIMIT = 8;
+const RECENT_ACTIVITY_LIMIT = 10;
+
+const getLast12MonthsRange = () => {
+  const now = new Date();
+
+  const start = new Date(now.getFullYear(), now.getMonth() - (MONTHS_TO_SHOW - 1), 1);
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  end.setHours(0, 0, 0, 0);
+
+  return { start, end };
+};
+
+const getMonthKeys = () => {
+  const now = new Date();
+  const months: string[] = [];
+
+  for (let i = MONTHS_TO_SHOW - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    months.push(`${year}-${month}`);
+  }
+
+  return months;
+};
+
+const maskPhone = (phone?: string | null) => {
+  if (!phone) return null;
+  if (phone.length <= 4) return phone;
+  return `${phone.slice(0, 3)}****${phone.slice(-3)}`;
+};
+
+const maskTransactionId = (tx?: string | null) => {
+  if (!tx) return null;
+  if (tx.length <= 4) return tx;
+  return `${tx.slice(0, 3)}****${tx.slice(-2)}`;
+};
+
+const buildOrderScope = ({
+  userId,
+  guestId,
+}: TCustomerDashboardOverviewParams): Prisma.OrderWhereInput => {
+  if (userId) {
+    return { userId };
+  }
+
+  if (guestId) {
+    return { guestId };
+  }
+
+  throw new AppError(
+    HttpStatusCode.BadRequest,
+    "User or guest identity is required to fetch dashboard overview"
+  );
+};
+
+const getCustomerDashboardOverview = async ({
+  userId,
+  guestId,
+}: TCustomerDashboardOverviewParams) => {
+  const orderWhere = buildOrderScope({ userId, guestId });
+  const { start, end } = getLast12MonthsRange();
+  const monthKeys = getMonthKeys();
+
+  const [
+    summaryAgg,
+    deliveredCount,
+    pendingCount,
+    cancelledCount,
+    orderStatusGroups,
+    paymentStatusGroups,
+    paymentMethodGroups,
+    recentOrders,
+    latestManualPayment,
+    recentActivities,
+    monthlyOrdersRaw,
+  ] = await Promise.all([
+    prisma.order.aggregate({
+      where: orderWhere,
+      _count: { id: true },
+      _sum: {
+        totalAmount: true,
+        paidAmount: true,
+        dueAmount: true,
+      },
+    }),
+
+    prisma.order.count({
+      where: {
+        ...orderWhere,
+        orderStatus: OrderStatus.DELIVERED,
+      },
+    }),
+
+    prisma.order.count({
+      where: {
+        ...orderWhere,
+        orderStatus: {
+          in: [
+            OrderStatus.PENDING,
+            OrderStatus.CONFIRMED,
+            OrderStatus.PROCESSING,
+            OrderStatus.PACKED,
+            OrderStatus.SHIPPED,
+            OrderStatus.OUT_FOR_DELIVERY,
+          ],
+        },
+      },
+    }),
+
+    prisma.order.count({
+      where: {
+        ...orderWhere,
+        orderStatus: OrderStatus.CANCELLED,
+      },
+    }),
+
+    prisma.order.groupBy({
+      by: ["orderStatus"],
+      where: orderWhere,
+      _count: {
+        orderStatus: true,
+      },
+      orderBy: {
+        orderStatus: "asc",
+      },
+    }),
+
+    prisma.order.groupBy({
+      by: ["paymentStatus"],
+      where: orderWhere,
+      _count: {
+        paymentStatus: true,
+      },
+      orderBy: {
+        paymentStatus: "asc",
+      },
+    }),
+
+    prisma.order.groupBy({
+      by: ["paymentMethod"],
+      where: orderWhere,
+      _count: {
+        paymentMethod: true,
+      },
+      orderBy: {
+        paymentMethod: "asc",
+      },
+    }),
+
+    prisma.order.findMany({
+      where: orderWhere,
+      select: {
+        id: true,
+        orderNumber: true,
+        totalAmount: true,
+        paidAmount: true,
+        dueAmount: true,
+        paymentStatus: true,
+        orderStatus: true,
+        createdAt: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: RECENT_ORDERS_LIMIT,
+    }),
+
+    prisma.manualPaymentSubmission.findFirst({
+      where: {
+        order: orderWhere,
+      },
+      select: {
+        id: true,
+        gateway: true,
+        senderNumber: true,
+        transactionId: true,
+        paidAmount: true,
+        verificationStatus: true,
+        adminNote: true,
+        createdAt: true,
+        verifiedAt: true,
+        rejectedAt: true,
+        order: {
+          select: {
+            orderNumber: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    }),
+
+    prisma.orderStatusHistory.findMany({
+      where: {
+        order: orderWhere,
+      },
+      select: {
+        id: true,
+        status: true,
+        note: true,
+        createdAt: true,
+        order: {
+          select: {
+            orderNumber: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: RECENT_ACTIVITY_LIMIT,
+    }),
+
+    prisma.$queryRaw<
+      Array<{
+        month: string;
+        totalOrders: bigint | number;
+        totalSpent: number | null;
+      }>
+    >(Prisma.sql`
+      SELECT
+        TO_CHAR(DATE_TRUNC('month', "createdAt"), 'YYYY-MM') AS month,
+        COUNT(*) AS "totalOrders",
+        COALESCE(SUM("totalAmount"), 0) AS "totalSpent"
+      FROM "orders"
+      WHERE
+        ${
+          userId
+            ? Prisma.sql`"userId" = ${userId}`
+            : Prisma.sql`"guestId" = ${guestId as string}`
+        }
+        AND "createdAt" >= ${start}
+        AND "createdAt" < ${end}
+      GROUP BY DATE_TRUNC('month', "createdAt")
+      ORDER BY DATE_TRUNC('month', "createdAt") ASC
+    `),
+  ]);
+
+  const monthlyMap = new Map<
+    string,
+    {
+      month: string;
+      totalOrders: number;
+      totalSpent: number;
+    }
+  >();
+
+  for (const key of monthKeys) {
+    monthlyMap.set(key, {
+      month: key,
+      totalOrders: 0,
+      totalSpent: 0,
+    });
+  }
+
+  for (const item of monthlyOrdersRaw) {
+    monthlyMap.set(item.month, {
+      month: item.month,
+      totalOrders: Number(item.totalOrders || 0),
+      totalSpent: Number(item.totalSpent || 0),
+    });
+  }
+
+  const monthlyGraph = Array.from(monthlyMap.values());
+
+  return {
+    summary: {
+      totalOrders: summaryAgg._count.id ?? 0,
+      totalSpent: summaryAgg._sum.totalAmount ?? 0,
+      totalPaid: summaryAgg._sum.paidAmount ?? 0,
+      totalDue: summaryAgg._sum.dueAmount ?? 0,
+      deliveredOrders: deliveredCount,
+      pendingOrders: pendingCount,
+      cancelledOrders: cancelledCount,
+    },
+
+    graphs: {
+      monthlyOrders: monthlyGraph.map((item) => ({
+        month: item.month,
+        value: item.totalOrders,
+      })),
+      monthlySpending: monthlyGraph.map((item) => ({
+        month: item.month,
+        value: item.totalSpent,
+      })),
+    },
+
+    charts: {
+      orderStatus: orderStatusGroups.map((item) => ({
+        status: item.orderStatus,
+        count: item._count.orderStatus,
+      })),
+      paymentStatus: paymentStatusGroups.map((item) => ({
+        status: item.paymentStatus,
+        count: item._count.paymentStatus,
+      })),
+      paymentMethod: paymentMethodGroups.map((item) => ({
+        method: item.paymentMethod,
+        count: item._count.paymentMethod,
+      })),
+    },
+
+    recentOrders: recentOrders.map((order) => ({
+      id: order.id,
+      orderNumber: order.orderNumber,
+      totalAmount: order.totalAmount,
+      paidAmount: order.paidAmount,
+      dueAmount: order.dueAmount,
+      paymentStatus: order.paymentStatus,
+      orderStatus: order.orderStatus,
+      createdAt: order.createdAt,
+    })),
+
+    latestManualPaymentStatus: latestManualPayment
+      ? {
+          id: latestManualPayment.id,
+          orderNumber: latestManualPayment.order.orderNumber,
+          gateway: latestManualPayment.gateway,
+          senderNumber: maskPhone(latestManualPayment.senderNumber),
+          transactionId: maskTransactionId(latestManualPayment.transactionId),
+          paidAmount: latestManualPayment.paidAmount,
+          verificationStatus: latestManualPayment.verificationStatus,
+          adminNote: latestManualPayment.adminNote,
+          createdAt: latestManualPayment.createdAt,
+          verifiedAt: latestManualPayment.verifiedAt,
+          rejectedAt: latestManualPayment.rejectedAt,
+        }
+      : null,
+
+    recentActivityTimeline: recentActivities.map((activity) => ({
+      id: activity.id,
+      orderNumber: activity.order.orderNumber,
+      status: activity.status,
+      note: activity.note,
+      createdAt: activity.createdAt,
+    })),
+  };
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 export const DashboardService = {
   getOverview,
+  getCustomerDashboardOverview,
 };
