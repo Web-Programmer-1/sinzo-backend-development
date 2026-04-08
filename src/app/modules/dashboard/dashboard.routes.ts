@@ -17,7 +17,7 @@ router.get(
 
 router.get(
   "/customer/dashboard-overview",
-  authGuard("CUSTOMER", "ADMIN"),
+
   DashboardController.getCustomerDashboardOverview
 )
 

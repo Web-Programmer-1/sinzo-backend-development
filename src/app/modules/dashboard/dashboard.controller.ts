@@ -5,6 +5,7 @@ import { DashboardService } from "./dashboard.service";
 
 import httpStatus from "http-status";
 import { AuthRequest } from "../../middlewares/AuthGurd";
+import { getCartOwner } from "../../../helper/getCartOwener";
 
 
 declare global {
@@ -35,17 +36,15 @@ const getOverview = catchAsync(async (req: Request, res: Response) => {
 
 const getCustomerDashboardOverview = catchAsync(
   async (req: AuthRequest, res: Response) => {
-    const userId = req.user?.userId || null;
 
-    const guestId =
-      !userId
-        ? req.cookies?.guest_cart_id || req.cookies?.guestId || null
-        : null;
+    const { userId, guestId } = getCartOwner(req, res); // ✅ FIX
 
     const result = await DashboardService.getCustomerDashboardOverview({
       userId,
       guestId,
     });
+
+    
 
     sendResponse(res, {
       statusCode: httpStatus.OK,
@@ -55,10 +54,6 @@ const getCustomerDashboardOverview = catchAsync(
     });
   }
 );
-
-
-
-
 
 
 
