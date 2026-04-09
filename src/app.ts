@@ -1,4 +1,4 @@
-import express, { Application,  Request, Response } from 'express';
+import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
 import globalErrorHandler from './app/middlewares/globalErrorHandler';
 import notFound from './app/middlewares/notFound';
@@ -10,6 +10,11 @@ import rateLimit from 'express-rate-limit';
 
 const app: Application = express();
 
+
+if ( process.env.NODE_ENV === 'production') {
+    app.set("trust proxy", 1); 
+}
+
 const allowedOrigins = [
   "http://localhost:3000",
   "https://sinzo-frontend-development.vercel.app",
@@ -17,34 +22,29 @@ const allowedOrigins = [
 
 app.use(helmet());
 
-
-
+// ✅ ২. Rate Limiter
 app.use(rateLimit({
-  windowMs: 1 * 60 * 1000,
+  windowMs: 1 * 60 * 1000, 
   max: 60,
 }));
-
-
 
 app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
-
       return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
   })
 );
-//parser
+
+// Parsers
 app.use(express.json());
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
-
 
 app.get('/', (req: Request, res: Response) => {
     res.send({
@@ -55,16 +55,11 @@ app.get('/', (req: Request, res: Response) => {
     })
 });
 
-app.set("trust proxy", true);
 
-// 🔹 main api route
+// 🔹 Main API Route
 app.use("/api/v1", router);
 
-
 app.use(notFound);
-
 app.use(globalErrorHandler);
-
-
 
 export default app;
