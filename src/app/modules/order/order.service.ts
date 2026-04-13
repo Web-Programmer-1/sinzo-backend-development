@@ -1,6 +1,12 @@
 import AppError from "../../shared/ApiError";
 import httpStatus from "http-status";
 import { prisma } from "../../shared/Prisma";
+
+import axios from "axios";
+
+// services/OrderService.ts
+import PDFDocument from "pdfkit";
+
 import {
 
   DeliveryAreaType,
@@ -999,6 +1005,440 @@ const deleteOrder = async (orderId: string) => {
 
 
 
+
+
+
+
+const updateOrderCustomerInfo = async (
+  adminId: string,
+  orderId: string,
+  payload: {
+    fullName?: string;
+    phone?: string;
+    email?: string;
+    country?: string;
+    city?: string;
+    area?: string;
+    addressLine?: string;
+    deliveryArea?: DeliveryAreaType;
+    note?: string;
+  },
+) => {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+  });
+
+  if (!order) {
+    throw new AppError(httpStatus.NOT_FOUND, "Order not found");
+  }
+
+  // Check if order is already sent to courier
+  if (order.courierStatus === "SENT") {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Cannot update customer info: Order already sent to courier",
+    );
+  }
+
+  const updatedOrder = await prisma.$transaction(async (tx) => {
+    const updated = await tx.order.update({
+      where: { id: orderId },
+      data: {
+        ...payload,
+      },
+    });
+
+    // Add status history log
+    await tx.orderStatusHistory.create({
+      data: {
+        orderId,
+        status: order.orderStatus,
+        note: `Customer information updated by admin. Fields: ${Object.keys(payload).join(", ")}`,
+        updatedById: adminId,
+      },
+    });
+
+    return updated;
+  });
+
+  return updatedOrder;
+};
+
+
+
+
+
+export const generateInvoice = async (orderId: string): Promise<Buffer> => {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      items: true,
+      user: { select: { name: true, email: true, phone: true } },
+    },
+  });
+
+  if (!order) {
+    throw new AppError(httpStatus.NOT_FOUND, "Order not found");
+  }
+
+  return new Promise(async (resolve, reject) => {
+    const doc = new PDFDocument({ 
+      size: "A4", 
+      margins: {
+        top: 40,
+        bottom: 40,
+        left: 40,
+        right: 40
+      },
+    });
+    
+    const buffers: Buffer[] = [];
+    doc.on("data", buffers.push.bind(buffers));
+    doc.on("end", () => resolve(Buffer.concat(buffers)));
+    doc.on("error", reject);
+
+    try {
+      const colors = {
+        primary: "#1e40af",
+        secondary: "#3b82f6",
+        accent: "#f59e0b",
+        dark: "#1f2937",
+        gray: "#6b7280",
+        lightGray: "#f3f4f6",
+        border: "#e5e7eb",
+        success: "#10b981",
+      };
+
+      const pageWidth = doc.page.width;
+      const pageHeight = doc.page.height;
+      const margin = 40;
+      const contentWidth = pageWidth - (margin * 2);
+
+      const drawHeader = (yPos: number) => {
+        doc.rect(margin, yPos, contentWidth, 6)
+           .fill(colors.primary);
+        
+        doc.rect(margin, yPos + 10, contentWidth, 55)
+           .fill(colors.lightGray);
+        
+        doc.fontSize(20)
+           .font("Helvetica-Bold")
+           .fillColor(colors.primary)
+           .text("SINZO", margin + 8, yPos + 12, { width: 180 });
+        
+        doc.fontSize(8)
+           .fillColor(colors.gray)
+           .text("Premium E-Commerce Solutions", margin + 8, yPos + 30, { width: 180 });
+        
+        const invoiceTitleWidth = 100;
+        doc.fontSize(20)
+           .font("Helvetica-Bold")
+           .fillColor(colors.dark)
+           .text("INVOICE", pageWidth - margin - invoiceTitleWidth, yPos + 12, { 
+             align: "right",
+             width: invoiceTitleWidth 
+           });
+        
+        doc.fontSize(9)
+           .fillColor(colors.gray)
+           .text(`#${order.orderNumber}`, pageWidth - margin - invoiceTitleWidth, yPos + 32, { 
+             align: "right",
+             width: invoiceTitleWidth 
+           });
+        
+        doc.moveTo(margin, yPos + 72)
+           .lineTo(pageWidth - margin, yPos + 72)
+           .strokeColor(colors.border)
+           .lineWidth(0.5)
+           .stroke();
+        
+        return yPos + 78;
+      };
+
+      const drawInfoSection = (yPos: number) => {
+        const boxWidth = (contentWidth / 2) - 15;
+        const boxHeight = 65;
+        
+        doc.rect(margin, yPos, boxWidth, boxHeight)
+           .strokeColor(colors.border)
+           .lineWidth(0.5)
+           .stroke();
+        
+        doc.fontSize(8)
+           .font("Helvetica-Bold")
+           .fillColor(colors.primary)
+           .text("INVOICE DETAILS", margin + 6, yPos + 6, { width: boxWidth - 12 });
+        
+        doc.fontSize(7)
+           .font("Helvetica")
+           .fillColor(colors.dark)
+           .text(`Invoice: ${order.orderNumber}`, margin + 6, yPos + 18, { width: boxWidth - 12 })
+           .text(`Date: ${new Date(order.createdAt).toLocaleDateString("en-BD", { 
+             year: 'numeric', 
+             month: 'short', 
+             day: 'numeric' 
+           })}`, margin + 6, yPos + 28, { width: boxWidth - 12 })
+           .text(`Due: ${new Date(Date.now() + 14*24*60*60*1000).toLocaleDateString("en-BD", { 
+             year: 'numeric', 
+             month: 'short', 
+             day: 'numeric' 
+           })}`, margin + 6, yPos + 38, { width: boxWidth - 12 });
+        
+        if (order.trackingCode) {
+          doc.text(`Tracking: ${order.trackingCode}`, margin + 6, yPos + 48, { width: boxWidth - 12 });
+        }
+        
+        const statusColors: Record<string, string> = {
+          pending: colors.accent,
+          processing: colors.secondary,
+          completed: colors.success,
+          cancelled: "#ef4444"
+        };
+        
+        const statusColor = statusColors[order.orderStatus?.toLowerCase()] || colors.gray;
+        const badgeWidth = 75;
+        const badgeHeight = 22;
+        const badgeX = pageWidth - margin - badgeWidth;
+        
+        doc.roundedRect(badgeX, yPos, badgeWidth, badgeHeight, 4)
+           .fill(statusColor);
+        
+        doc.fontSize(8)
+           .font("Helvetica-Bold")
+           .fillColor("#ffffff")
+           .text(order.orderStatus?.toUpperCase() || "PENDING", badgeX + 4, yPos + 6, { 
+             align: "center",
+             width: badgeWidth - 8 
+           });
+        
+        const billX = (pageWidth / 2) + 8;
+        const billWidth = (pageWidth / 2) - margin - 12;
+        
+        doc.fontSize(8)
+           .font("Helvetica-Bold")
+           .fillColor(colors.primary)
+           .text("BILL TO:", billX, yPos + 6, { width: billWidth });
+        
+        doc.fontSize(9)
+           .font("Helvetica-Bold")
+           .fillColor(colors.dark)
+           .text(order.fullName, billX, yPos + 16, { width: billWidth });
+        
+        doc.fontSize(7)
+           .font("Helvetica")
+           .fillColor(colors.gray)
+           .text(`Phone: ${order.phone}`, billX, yPos + 27, { width: billWidth })
+           .text(`${order.email || "N/A"}`, billX, yPos + 36, { width: billWidth })
+           .text(`${order.addressLine}`, billX, yPos + 45, { 
+             width: billWidth,
+             ellipsis: true
+           });
+        
+        return yPos + boxHeight + 8;
+      };
+
+      const drawImagePlaceholder = (x: number, y: number, width: number, height: number) => {
+        doc.rect(x, y, width, height)
+           .strokeColor(colors.border)
+           .lineWidth(0.5)
+           .stroke();
+        doc.moveTo(x, y)
+           .lineTo(x + width, y + height)
+           .strokeColor(colors.border)
+           .lineWidth(0.3)
+           .stroke();
+        doc.moveTo(x + width, y)
+           .lineTo(x, y + height)
+           .strokeColor(colors.border)
+           .lineWidth(0.3)
+           .stroke();
+      };
+
+      const drawItemsTable = async (yPos: number) => {
+        let currentY = yPos;
+        const tableWidth = contentWidth;
+        
+        const colImage = { x: margin, width: 40 };
+        const colDesc = { x: margin + 45, width: contentWidth - 230 };
+        const colQty = { x: pageWidth - margin - 170, width: 40 };
+        const colPrice = { x: pageWidth - margin - 120, width: 55 };
+        const colTotal = { x: pageWidth - margin - 60, width: 60 };
+        
+        doc.rect(margin, currentY, tableWidth, 24)
+           .fill(colors.primary);
+        
+        doc.fontSize(8)
+           .font("Helvetica-Bold")
+           .fillColor("#ffffff")
+           .text("ITEM", colImage.x + 3, currentY + 8, { width: colImage.width });
+        
+        doc.text("DESCRIPTION", colDesc.x, currentY + 8, { width: colDesc.width });
+        doc.text("QTY", colQty.x, currentY + 8, { width: colQty.width, align: "center" });
+        doc.text("PRICE", colPrice.x, currentY + 8, { width: colPrice.width, align: "right" });
+        doc.text("TOTAL", colTotal.x, currentY + 8, { width: colTotal.width, align: "right" });
+        
+        currentY += 26;
+        
+        const maxItemsPerPage = 8;
+        const itemsToShow = order.items.slice(0, maxItemsPerPage);
+        
+        for (let i = 0; i < itemsToShow.length; i++) {
+          const item = itemsToShow[i];
+          const rowHeight = 48;
+          
+          if (i % 2 === 0) {
+            doc.rect(margin, currentY, tableWidth, rowHeight)
+               .fill(colors.lightGray);
+          }
+          
+          doc.rect(margin, currentY, tableWidth, rowHeight)
+             .strokeColor(colors.border)
+             .lineWidth(0.3)
+             .stroke();
+          
+          if (item.productImage) {
+            try {
+              const imageResponse = await axios.get(item.productImage, {
+                responseType: "arraybuffer",
+                timeout: 3000,
+              });
+              const imageBuffer = Buffer.from(imageResponse.data);
+              doc.image(imageBuffer, colImage.x + 3, currentY + 4, { 
+                width: 32, 
+                height: 32,
+                fit: [32, 32] as [number, number]
+              });
+            } catch (imgError) {
+              drawImagePlaceholder(colImage.x + 3, currentY + 4, 32, 32);
+            }
+          } else {
+            drawImagePlaceholder(colImage.x + 3, currentY + 4, 32, 32);
+          }
+          
+          doc.fontSize(8)
+             .font("Helvetica-Bold")
+             .fillColor(colors.dark)
+             .text(item.productTitle, colDesc.x, currentY + 6, { 
+               width: colDesc.width - 8,
+               ellipsis: true 
+             });
+          
+          doc.fontSize(6)
+             .font("Helvetica")
+             .fillColor(colors.gray)
+             .text(`Size: ${item.selectedSize || "N/A"}`, colDesc.x, currentY + 17, { width: colDesc.width - 8 })
+             .text(`Color: ${item.selectedColor || "N/A"}`, colDesc.x, currentY + 25, { width: colDesc.width - 8 });
+          
+          doc.fontSize(8)
+             .font("Helvetica-Bold")
+             .fillColor(colors.dark)
+             .text(item.quantity.toString(), colQty.x, currentY + 18, { 
+               width: colQty.width,
+               align: "center"
+             });
+          
+          doc.fontSize(7)
+             .fillColor(colors.gray)
+             .text(`${item.unitPrice} Tk`, colPrice.x, currentY + 18, { 
+               width: colPrice.width,
+               align: "right"
+             });
+          
+          doc.fontSize(9)
+             .font("Helvetica-Bold")
+             .fillColor(colors.primary)
+             .text(`${item.lineTotal} Tk`, colTotal.x, currentY + 18, { 
+               width: colTotal.width,
+               align: "right"
+             });
+          
+          currentY += rowHeight;
+        }
+        
+        if (order.items.length > maxItemsPerPage) {
+          const remainingItems = order.items.length - maxItemsPerPage;
+          doc.fontSize(7)
+             .fillColor(colors.gray)
+             .text(`+ ${remainingItems} more item(s)`, margin + 6, currentY + 4, { width: contentWidth - 12 });
+          currentY += 12;
+        }
+        
+        return currentY + 8;
+      };
+
+      const drawTotals = (yPos: number) => {
+        const tableWidth = 180;
+        const tableX = pageWidth - margin - tableWidth;
+        
+        doc.fontSize(8)
+           .font("Helvetica")
+           .fillColor(colors.dark)
+           .text("Subtotal:", tableX, yPos);
+        
+        doc.fontSize(8)
+           .fillColor(colors.dark)
+           .text(`${order.subtotal} Tk`, tableX + 90, yPos, { 
+             align: "right",
+             width: 80 
+           });
+        
+        const deliveryY = yPos + 18;
+        doc.fontSize(8)
+           .fillColor(colors.dark)
+           .text("Delivery:", tableX, deliveryY);
+        
+        doc.fontSize(8)
+           .fillColor(colors.dark)
+           .text(`${order.deliveryCharge} Tk`, tableX + 90, deliveryY, { 
+             align: "right",
+             width: 80 
+           });
+        
+        const totalY = deliveryY + 24;
+        doc.roundedRect(tableX, totalY, tableWidth, 42, 6)
+           .fill(colors.primary);
+        
+        doc.fontSize(10)
+           .font("Helvetica-Bold")
+           .fillColor("#ffffff")
+           .text("TOTAL AMOUNT", tableX + 8, totalY + 10, { width: tableWidth - 16 });
+        
+        doc.fontSize(16)
+           .text(`${order.totalAmount} Tk`, tableX + 8, totalY + 24, { width: tableWidth - 16 });
+        
+        return totalY + 50;
+      };
+
+      const drawFooter = (yPos: number) => {
+        const notesWidth = contentWidth;
+        
+        doc.fontSize(8)
+           .font("Helvetica-Bold")
+           .fillColor(colors.primary)
+           .text("NOTES:", margin, yPos, { width: notesWidth });
+        
+        doc.fontSize(6)
+           .fillColor(colors.gray)
+           .text("Thank you for your business! For queries: sinzowear@gmail.com", margin, yPos + 10, { width: notesWidth })
+           .text("Please include invoice number in payment reference", margin, yPos + 17, { width: notesWidth });
+      };
+
+      let yPos = margin;
+      yPos = drawHeader(yPos);
+      yPos = drawInfoSection(yPos);
+      yPos = await drawItemsTable(yPos);
+      yPos = drawTotals(yPos);
+      drawFooter(yPos);
+
+      doc.end();
+    } catch (error) {
+      reject(error);
+    }
+  });
+};
+
+
+
 export const OrderService = {
   placeOrder,
   getMyOrders,
@@ -1010,4 +1450,6 @@ export const OrderService = {
   updatePaymentStatus,
   getCustomerRanking,
   deleteOrder,
+  updateOrderCustomerInfo,
+  generateInvoice,
 };

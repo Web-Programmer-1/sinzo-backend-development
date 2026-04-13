@@ -177,6 +177,47 @@ const deleteOrder = catchAsync(async (req: Request, res: Response) => {
 
 
 
+
+
+
+const updateOrderCustomerInfo = catchAsync(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  const adminId = req.user!.userId;
+
+  const result = await OrderService.updateOrderCustomerInfo(adminId, id as string, req.body);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Customer information updated successfully",
+    data: result,
+  });
+});
+
+
+
+
+
+
+// controllers/OrderController.ts
+const generateInvoice = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  const invoiceBuffer = await OrderService.generateInvoice(id as string);
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="invoice-${id}.pdf"`
+  );
+
+  res.send(invoiceBuffer);
+});
+
+
+
+
+
 export const OrderController = {
   placeOrder,
   getMyOrders,
@@ -188,4 +229,6 @@ export const OrderController = {
   getOrderById,
   getCustomerRanking,
   deleteOrder,
+  updateOrderCustomerInfo,
+  generateInvoice,
 };

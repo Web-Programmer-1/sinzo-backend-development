@@ -34,17 +34,52 @@ const getOverview = catchAsync(async (req: Request, res: Response) => {
 
 
 
-const getCustomerDashboardOverview = catchAsync(
-  async (req: AuthRequest, res: Response) => {
+// const getCustomerDashboardOverview = catchAsync(
+//   async (req: AuthRequest, res: Response) => {
 
-    const { userId, guestId } = getCartOwner(req, res); // ✅ FIX
+//     const { userId, guestId } = getCartOwner(req, res); // ✅ FIX
 
-    const result = await DashboardService.getCustomerDashboardOverview({
-      userId,
-      guestId,
-    });
+//     const result = await DashboardService.getCustomerDashboardOverview({
+//       userId,
+//       guestId,
+//     });
 
     
+
+//     sendResponse(res, {
+//       statusCode: httpStatus.OK,
+//       success: true,
+//       message: "Customer dashboard overview fetched successfully",
+//       data: result,
+//     });
+//   }
+// );
+
+
+
+
+
+
+const getCustomerDashboardOverview = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    
+    // ১. ইউজার অথেন্টিকেটেড কিনা চেক করুন
+    if (!req.user || !req.user.userId) {
+      return sendResponse(res, {
+        statusCode: httpStatus.UNAUTHORIZED,
+        success: false,
+        message: "Unauthorized access",
+        data: null,
+      });
+    }
+
+    const userId = req.user.userId;
+
+    // ২. সার্ভিসে শুধুমাত্র userId পাঠান। guestId null রাখুন।
+    const result = await DashboardService.getCustomerDashboardOverview({
+      userId: userId,
+      guestId: null, 
+    });
 
     sendResponse(res, {
       statusCode: httpStatus.OK,

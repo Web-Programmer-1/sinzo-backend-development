@@ -15,11 +15,20 @@ router.get(
 
 
 
+// router.get(
+//   "/customer/dashboard-overview",
+
+//   DashboardController.getCustomerDashboardOverview
+// )
+
+
+
 router.get(
   "/customer/dashboard-overview",
-
+  authGuard(UserRole.CUSTOMER, UserRole.ADMIN), // ✅ এটি নিশ্চিত করুন
   DashboardController.getCustomerDashboardOverview
-)
+);
+
 
 
 export const DashboardRoutes = router;

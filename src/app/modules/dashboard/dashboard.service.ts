@@ -703,12 +703,19 @@ const buildOrderScope = ({
   userId,
   guestId,
 }: TCustomerDashboardOverviewParams): Prisma.OrderWhereInput => {
+  
+  console.log("🔍 Building Scope - userId:", userId, "guestId:", guestId);
+
   if (userId) {
-    return { userId };
+    const scope = { userId: userId };
+    console.log("✅ Using User Scope:", scope);
+    return scope;
   }
 
   if (guestId) {
-    return { guestId };
+    const scope = { guestId: guestId };
+    console.log("✅ Using Guest Scope:", scope);
+    return scope;
   }
 
   throw new AppError(

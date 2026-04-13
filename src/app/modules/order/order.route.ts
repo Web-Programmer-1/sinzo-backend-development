@@ -9,7 +9,7 @@ const router = express.Router();
 
 router.get(
   "/customer-ranking",
-  authGuard(UserRole.ADMIN, UserRole.CUSTOMER),
+  
   OrderController.getCustomerRanking
 );
 
@@ -84,13 +84,25 @@ router.patch(
 
 router.delete(
   "/:id",
-  authGuard(UserRole.ADMIN, UserRole.CUSTOMER),
+  authGuard(UserRole.ADMIN),
   OrderController.deleteOrder
 );
 
 
 
+router.patch(
+  "/:id/customer-info",
+  authGuard(UserRole.ADMIN),
+  OrderController.updateOrderCustomerInfo
+);
 
+
+
+router.get(
+  "/:id/invoice",
+  authGuard(UserRole.ADMIN, UserRole.CUSTOMER),
+  OrderController.generateInvoice
+);
 
 
 
