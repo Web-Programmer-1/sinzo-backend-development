@@ -458,7 +458,7 @@ const sendOrderConfirmationEmail = async (order: any) => {
       shopName: "SINZO",
       shopAddress: "Dhaka Lalbagh",
       shopPhone: "01576450711",
-      receiptUrl: `${config.frontendUrl}/orders/${order.id}`,
+      receiptUrl: `${config.frontendUrl}/userDashboard/order`,
       items: order.items.map((item: any) => ({
         productTitle: item.productTitle,
         productImage: item.productImage || "",
