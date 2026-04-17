@@ -1,3 +1,4 @@
+import redis from "../../../config/redis";
 import AppError from "../../shared/ApiError";
 import { prisma } from "../../shared/Prisma";
 import httpStatus from "http-status";
@@ -9,89 +10,12 @@ type TUpdateCartPayload = {
   selectedSize?: string | null;
 };
 
-// const addToCart = async (guestId: string, payload: any) => {
-//   const { productId, quantity = 1, selectedColor, selectedSize } = payload;
 
-//   if (!productId) {
-//     throw new Error("Product ID is required");
-//   }
 
-//   if (quantity < 1) {
-//     throw new Error("Quantity must be at least 1");
-//   }
 
-//   const product = await prisma.product.findUnique({
-//     where: { id: productId },
-//   });
 
-//   if (!product) {
-//     throw new Error("Product not found");
-//   }
 
-//   if (product.stock < quantity) {
-//     throw new Error("Not enough stock available");
-//   }
 
-//   if (
-//     selectedColor &&
-//     product.colors.length > 0 &&
-//     !product.colors.includes(selectedColor)
-//   ) {
-//     throw new Error("Selected color is invalid");
-//   }
-
-//   if (
-//     selectedSize &&
-//     product.sizes.length > 0 &&
-//     !product.sizes.includes(selectedSize)
-//   ) {
-//     throw new Error("Selected size is invalid");
-//   }
-
-//   const existingCartItem = await prisma.cart.findFirst({
-//     where: {
-//       guestId,
-//       productId,
-//       selectedColor: selectedColor ?? null,
-//       selectedSize: selectedSize ?? null,
-//     },
-//   });
-
-//   if (existingCartItem) {
-//     const newQuantity = existingCartItem.quantity + quantity;
-
-//     if (newQuantity > product.stock) {
-//       throw new Error("Quantity exceeds available stock");
-//     }
-
-//     const updatedCart = await prisma.cart.update({
-//       where: { id: existingCartItem.id },
-//       data: {
-//         quantity: newQuantity,
-//       },
-//       include: {
-//         product: true,
-//       },
-//     });
-
-//     return updatedCart;
-//   }
-
-//   const cartItem = await prisma.cart.create({
-//     data: {
-//       guestId,
-//       productId,
-//       quantity,
-//       selectedColor,
-//       selectedSize,
-//     },
-//     include: {
-//       product: true,
-//     },
-//   });
-
-//   return cartItem;
-// };
 
 
 
@@ -113,6 +37,7 @@ const addToCart = async (guestId: string, payload: any) => {
     );
   }
 
+  // Product validation
   const product = await prisma.product.findUnique({
     where: { id: productId },
     select: {
@@ -131,6 +56,7 @@ const addToCart = async (guestId: string, payload: any) => {
     throw new AppError(httpStatus.BAD_REQUEST, "Not enough stock available");
   }
 
+  // Color validation
   const colorVariants = Array.isArray(product.colorVariants)
     ? (product.colorVariants as { color: string; images: string[] }[])
     : [];
@@ -145,6 +71,7 @@ const addToCart = async (guestId: string, payload: any) => {
     throw new AppError(httpStatus.BAD_REQUEST, "Selected color is invalid");
   }
 
+  // Size validation
   if (
     selectedSize &&
     Array.isArray(product.sizes) &&
@@ -154,6 +81,7 @@ const addToCart = async (guestId: string, payload: any) => {
     throw new AppError(httpStatus.BAD_REQUEST, "Selected size is invalid");
   }
 
+  // Check existing item
   const existingCartItem = await prisma.cart.findFirst({
     where: {
       guestId,
@@ -167,6 +95,8 @@ const addToCart = async (guestId: string, payload: any) => {
     },
   });
 
+  let result;
+
   if (existingCartItem) {
     const newQuantity = existingCartItem.quantity + Number(quantity);
 
@@ -177,33 +107,52 @@ const addToCart = async (guestId: string, payload: any) => {
       );
     }
 
-    const updatedCart = await prisma.cart.update({
+    result = await prisma.cart.update({
       where: { id: existingCartItem.id },
       data: {
         quantity: newQuantity,
       },
       include: {
-        product: true,
+        product: {
+          select: {
+            id: true,
+            title: true,
+            price: true,
+            productCardImage: true,
+          },
+        },
       },
     });
-
-    return updatedCart;
+  } else {
+    result = await prisma.cart.create({
+      data: {
+        guestId,
+        productId,
+        quantity: Number(quantity),
+        selectedColor: selectedColor ?? null,
+        selectedSize: selectedSize ?? null,
+      },
+      include: {
+        product: {
+          select: {
+            id: true,
+            title: true,
+            price: true,
+            productCardImage: true,
+          },
+        },
+      },
+    });
   }
 
-  const cartItem = await prisma.cart.create({
-    data: {
-      guestId,
-      productId,
-      quantity: Number(quantity),
-      selectedColor: selectedColor ?? null,
-      selectedSize: selectedSize ?? null,
-    },
-    include: {
-      product: true,
-    },
-  });
+  // Invalidate Cache for this user's cart
+  try {
+    await redis.del(`cart:${guestId}`);
+  } catch (error) {
+    console.error('Redis Cache Invalidation Error:', error);
+  }
 
-  return cartItem;
+  return result;
 };
 
 
@@ -211,7 +160,23 @@ const addToCart = async (guestId: string, payload: any) => {
 
 
 
+
+
+
+
+
 const getMyCart = async (guestId: string) => {
+  const cacheKey = `cart:${guestId}`;
+
+  try {
+    const cachedData = await redis.get(cacheKey);
+    if (cachedData) {
+      return JSON.parse(cachedData);
+    }
+  } catch (error) {
+    console.error('Redis GET Error:', error);
+  }
+
   const cartItems = await prisma.cart.findMany({
     where: { guestId },
     include: {
@@ -235,7 +200,7 @@ const getMyCart = async (guestId: string) => {
 
   const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
-  return {
+  const result = {
     items: cartItems,
     summary: {
       subtotal,
@@ -243,77 +208,25 @@ const getMyCart = async (guestId: string) => {
       totalUniqueItems: cartItems.length,
     },
   };
+
+  try {
+    await redis.setex(cacheKey, 30, JSON.stringify(result));
+  } catch (error) {
+    console.error('Redis SET Error:', error);
+  }
+
+  return result;
 };
 
-// const updateCartItem = async (
-//   guestId: string,
-//   cartId: string,
-//   payload: any
-// ) => {
-//   const { quantity, selectedColor, selectedSize } = payload;
+export default { getMyCart };
 
-//   const existingCart = await prisma.cart.findFirst({
-//     where: {
-//       id: cartId,
-//       guestId,
-//     },
-//     include: {
-//       product: true,
-//     },
-//   });
 
-//   if (!existingCart) {
-//     throw new Error("Cart item not found");
-//   }
 
-//   const updateData: any = {};
 
-//   if (quantity !== undefined) {
-//     if (Number(quantity) < 1) {
-//       throw new Error("Quantity must be at least 1");
-//     }
 
-//     if (Number(quantity) > existingCart.product.stock) {
-//       throw new Error("Quantity exceeds available stock");
-//     }
 
-//     updateData.quantity = Number(quantity);
-//   }
 
-//   if (selectedColor !== undefined) {
-//     if (
-//       selectedColor &&
-//       existingCart.product.colors.length > 0 &&
-//       !existingCart.product.colors.includes(selectedColor)
-//     ) {
-//       throw new Error("Selected color is invalid");
-//     }
 
-//     updateData.selectedColor = selectedColor;
-//   }
-
-//   if (selectedSize !== undefined) {
-//     if (
-//       selectedSize &&
-//       existingCart.product.sizes.length > 0 &&
-//       !existingCart.product.sizes.includes(selectedSize)
-//     ) {
-//       throw new Error("Selected size is invalid");
-//     }
-
-//     updateData.selectedSize = selectedSize;
-//   }
-
-//   const updated = await prisma.cart.update({
-//     where: { id: cartId },
-//     data: updateData,
-//     include: {
-//       product: true,
-//     },
-//   });
-
-//   return updated;
-// };
 
 
 

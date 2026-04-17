@@ -667,12 +667,100 @@ const getAllOrders = async (query: Record<string, any>) => {
   };
 };
 
+// const getOrderById = async (orderId: string) => {
+//   const order = await prisma.order.findUnique({
+//     where: {
+//       id: orderId,
+//     },
+//     include: {
+//       user: {
+//         select: {
+//           id: true,
+//           name: true,
+//           email: true,
+//           phone: true,
+//         },
+//       },
+
+//       items: true,
+//       manualPayment:true,
+//       statusHistory: {
+//         orderBy: {
+//           createdAt: "asc",
+//         },
+//       },
+//     },
+//   });
+
+//   if (!order) {
+//     throw new AppError(httpStatus.NOT_FOUND, "Order not found");
+//   }
+
+//   return order;
+// };
+
+
+
+
+
+
+
 const getOrderById = async (orderId: string) => {
   const order = await prisma.order.findUnique({
-    where: {
-      id: orderId,
-    },
-    include: {
+    where: { id: orderId },
+    select: {
+      // ── Core identifiers ──────────────────────────
+      id: true,
+      orderNumber: true,
+      serialNumber: true,
+ 
+      // ── Customer info ─────────────────────────────
+      userId: true,
+      guestId: true,
+      fullName: true,
+      phone: true,
+      email: true,
+      country: true,
+      city: true,
+      area: true,
+      addressLine: true,
+      note: true,
+ 
+      // ── Delivery ─────────────────────────────────
+      deliveryArea: true,
+      deliveryCharge: true,
+ 
+      // ── Payment ──────────────────────────────────
+      paymentMethod: true,
+      paymentStatus: true,
+      orderType: true,
+      orderStatus: true,
+ 
+      // ── Amounts ──────────────────────────────────
+      subtotal: true,
+      discountAmount: true,
+      vatAmount: true,
+      totalAmount: true,
+      paidAmount: true,
+      dueAmount: true,
+ 
+      // ── Courier ──────────────────────────────────
+      courierProvider: true,
+      courierStatus: true,
+      consignmentId: true,
+      trackingCode: true,
+      courierNote: true,
+      courierSentAt: true,
+      // courierRawResponse excluded — heavy JSON, not needed in UI
+ 
+      // ── Receipt ──────────────────────────────────
+      receiptPdfPath: true,
+ 
+      // ── Timestamps ───────────────────────────────
+      createdAt: true,
+      updatedAt: true,
+ 
+      // ── Relations ────────────────────────────────
       user: {
         select: {
           id: true,
@@ -681,23 +769,69 @@ const getOrderById = async (orderId: string) => {
           phone: true,
         },
       },
-
-      items: true,
-      manualPayment:true,
+ 
+      items: {
+        select: {
+          id: true,
+          productId: true,
+          productTitle: true,
+          productSlug: true,
+          productImage: true,
+          selectedColor: true,
+          selectedSize: true,
+          unitPrice: true,
+          quantity: true,
+          lineTotal: true,
+        },
+      },
+ 
+      manualPayment: {
+        select: {
+          id: true,
+          gateway: true,
+          senderNumber: true,
+          transactionId: true,
+          paidAmount: true,
+          note: true,
+          verificationStatus: true,
+          adminNote: true,
+          verifiedAt: true,
+          rejectedAt: true,
+          createdAt: true,
+          // verifiedById / verifiedBy excluded — not shown in order detail UI
+        },
+      },
+ 
       statusHistory: {
-        orderBy: {
-          createdAt: "asc",
+        orderBy: { createdAt: "asc" },
+        // Limit to last 20 — prevents unbounded fetch on orders with many updates
+        take: 20,
+        select: {
+          id: true,
+          status: true,
+          note: true,
+          createdAt: true,
+          updatedBy: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
         },
       },
     },
   });
-
+ 
   if (!order) {
     throw new AppError(httpStatus.NOT_FOUND, "Order not found");
   }
-
+ 
   return order;
 };
+
+
+
+
 
 const updateOrderStatus = async (
   adminId: string,
@@ -1157,7 +1291,7 @@ export const generateInvoice = async (orderId: string): Promise<Buffer> => {
 
       const drawInfoSection = (yPos: number) => {
         const boxWidth = (contentWidth / 2) - 15;
-        const boxHeight = 65;
+        const boxHeight = 75; // Increased height to accommodate consignment ID
         
         doc.rect(margin, yPos, boxWidth, boxHeight)
            .strokeColor(colors.border)
@@ -1184,8 +1318,17 @@ export const generateInvoice = async (orderId: string): Promise<Buffer> => {
              day: 'numeric' 
            })}`, margin + 6, yPos + 38, { width: boxWidth - 12 });
         
+        // Tracking Code
         if (order.trackingCode) {
           doc.text(`Tracking: ${order.trackingCode}`, margin + 6, yPos + 48, { width: boxWidth - 12 });
+        }
+        
+        // Consignment ID - NEW
+        if (order.consignmentId) {
+          const consignmentY = order.trackingCode ? yPos + 58 : yPos + 48;
+          doc.fontSize(7)
+             .fillColor(colors.secondary)
+             .text(`Consignment: ${order.consignmentId}`, margin + 6, consignmentY, { width: boxWidth - 12 });
         }
         
         const statusColors: Record<string, string> = {
@@ -1436,7 +1579,6 @@ export const generateInvoice = async (orderId: string): Promise<Buffer> => {
     }
   });
 };
-
 
 
 export const OrderService = {

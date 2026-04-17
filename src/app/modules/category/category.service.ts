@@ -2,6 +2,7 @@ import httpStatus from "http-status";
 import AppError from "../../shared/ApiError";
 import { prisma } from "../../shared/Prisma";
 import { TCategoryPayload } from "./category.interface";
+import redis from "../../../config/redis";
 
 const createCategory = async (payload: TCategoryPayload) => {
   const { title, thumbnailImage } = payload;
@@ -36,10 +37,25 @@ const createCategory = async (payload: TCategoryPayload) => {
 
 
 
+
+
+
 const getAllCategories = async (query: Record<string, any>) => {
   const searchTerm = query.searchTerm || "";
   const page = Number(query.page) || 1;
   const limit = Number(query.limit) || 10;
+
+  const cacheKey = `categories:${JSON.stringify({ searchTerm, page, limit })}`;
+
+  try {
+    const cachedData = await redis.get(cacheKey);
+    if (cachedData) {
+      return JSON.parse(cachedData);
+    }
+  } catch (error) {
+    console.error('Redis GET Error:', error);
+  }
+
   const skip = (page - 1) * limit;
 
   const whereConditions = searchTerm
@@ -51,20 +67,21 @@ const getAllCategories = async (query: Record<string, any>) => {
       }
     : {};
 
-  const result = await prisma.category.findMany({
-    where: whereConditions,
-    orderBy: {
-      createdAt: "desc",
-    },
-    skip,
-    take: limit,
-  });
+  const [result, total] = await Promise.all([
+    prisma.category.findMany({
+      where: whereConditions,
+      orderBy: {
+        createdAt: "desc",
+      },
+      skip,
+      take: limit,
+    }),
+    prisma.category.count({
+      where: whereConditions,
+    }),
+  ]);
 
-  const total = await prisma.category.count({
-    where: whereConditions,
-  });
-
-  return {
+  const responseData = {
     meta: {
       page,
       limit,
@@ -73,7 +90,20 @@ const getAllCategories = async (query: Record<string, any>) => {
     },
     data: result,
   };
+
+  try {
+    await redis.setex(cacheKey, 300, JSON.stringify(responseData));
+  } catch (error) {
+    console.error('Redis SET Error:', error);
+  }
+
+  return responseData;
 };
+
+
+
+
+
 
 
 

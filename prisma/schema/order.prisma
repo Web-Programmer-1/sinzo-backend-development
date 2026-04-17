@@ -167,6 +167,7 @@ model OrderItem {
 
   @@index([orderId])
   @@index([productId])
+  @@index([productSlug])
   @@map("order_items")
 }
 

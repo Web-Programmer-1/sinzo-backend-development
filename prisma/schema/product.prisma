@@ -32,6 +32,8 @@ model Category {
   updatedAt DateTime @updatedAt
 
   @@map("categories")
+  @@index([title])
+  @@index([createdAt])
 }
 
 model Product {
@@ -67,7 +69,7 @@ model Product {
   totalReviews  Int   @default(0)
 
   cart    Cart[]
-  wishlist  Wishlist[]
+
   reviews Review[]
 
   orderItem OrderItem[]
@@ -76,6 +78,7 @@ model Product {
   updatedAt DateTime @updatedAt
 
   @@map("products")
+  @@index([categoryId, createdAt])
 }
 
 
@@ -103,20 +106,3 @@ model Cart {
 
 
 
-model Wishlist {
-  id        String @id @default(uuid())
-  guestId   String
-  productId String
-
-  selectedColor String?
-  selectedSize  String?
-
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([guestId])
-  @@unique([guestId, productId, selectedColor, selectedSize])
-  @@map("wishlists")
-}
