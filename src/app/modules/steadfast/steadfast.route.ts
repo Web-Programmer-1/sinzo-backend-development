@@ -7,15 +7,11 @@ const router = express.Router();
 
 router.post(
   "/send/:id",
-  authGuard(UserRole.ADMIN, UserRole.CUSTOMER),
+  authGuard(UserRole.ADMIN),
   SteadfastController.sendSingleOrder
 );
 
-router.post(
-  "/send-bulk",
-  authGuard(UserRole.ADMIN, UserRole.CUSTOMER),
-  SteadfastController.sendBulkOrders
-);
+
 
 router.get(
   "/sync-status/:id",

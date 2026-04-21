@@ -118,71 +118,6 @@ const sendSingleOrderToSteadfast = async (orderId: string) => {
 }
 };
 
-const sendBulkOrdersToSteadfast = async (orderIds: string[]) => {
-  if (!orderIds?.length) {
-    throw new AppError(httpStatus.BAD_REQUEST, "Order IDs are required");
-  }
-
-  if (orderIds.length > 500) {
-    throw new AppError(httpStatus.BAD_REQUEST, "Maximum 500 orders allowed at a time");
-  }
-
-  const orders = await prisma.order.findMany({
-    where: {
-      id: { in: orderIds },
-    },
-    include: {
-      items: true,
-    },
-  });
-
-  if (!orders.length) {
-    throw new AppError(httpStatus.NOT_FOUND, "No orders found");
-  }
-
-  const payloadData = orders.map((order) => buildSteadfastPayloadFromOrder(order));
-
-  try {
-    const { data } = await steadfastClient.post("/create_order/bulk-order", {
-      data: JSON.stringify(payloadData),
-    });
-
-    const resultArray = Array.isArray(data) ? data : data?.data || [];
-
-    await prisma.$transaction(
-      resultArray.map((item: any) => {
-        const matchedOrder = orders.find((o) => o.orderNumber === item.invoice);
-
-        if (!matchedOrder) {
-          return prisma.$executeRaw`SELECT 1`;
-        }
-
-        return prisma.order.update({
-          where: { id: matchedOrder.id },
-          data: {
-            courierProvider: CourierProvider.STEADFAST,
-            courierStatus:
-              item.status === "success"
-                ? CourierOrderStatus.SENT
-                : CourierOrderStatus.FAILED,
-            consignmentId: item.consignment_id?.toString() || null,
-            trackingCode: item.tracking_code || null,
-            courierNote: item.status || null,
-            courierRawResponse: item,
-            courierSentAt: item.status === "success" ? new Date() : null,
-          },
-        });
-      })
-    );
-
-    return resultArray;
-  } catch (error: any) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      error?.response?.data?.message || "Failed to send bulk orders to Steadfast"
-    );
-  }
-};
 
 
 
@@ -407,7 +342,6 @@ const formatDate = (date: Date | string | null | undefined) => {
 
 
 
-// ✅ pdf generate service
 const generateSteadfastHistoryPdf = async (id: string): Promise<Buffer> => {
   const order = await prisma.order.findFirst({
     where: {
@@ -578,7 +512,7 @@ const deleteSteadfastHistory = async (id: string) => {
 
 export const SteadfastService = {
   sendSingleOrderToSteadfast,
-  sendBulkOrdersToSteadfast,
+
   checkSteadfastStatusByInvoice,
   syncOrderCourierStatus,
   getSteadfastHistory,

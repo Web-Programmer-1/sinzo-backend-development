@@ -669,39 +669,6 @@ const getAllOrders = async (query: Record<string, any>) => {
   };
 };
 
-// const getOrderById = async (orderId: string) => {
-//   const order = await prisma.order.findUnique({
-//     where: {
-//       id: orderId,
-//     },
-//     include: {
-//       user: {
-//         select: {
-//           id: true,
-//           name: true,
-//           email: true,
-//           phone: true,
-//         },
-//       },
-
-//       items: true,
-//       manualPayment:true,
-//       statusHistory: {
-//         orderBy: {
-//           createdAt: "asc",
-//         },
-//       },
-//     },
-//   });
-
-//   if (!order) {
-//     throw new AppError(httpStatus.NOT_FOUND, "Order not found");
-//   }
-
-//   return order;
-// };
-
-
 
 
 
@@ -804,23 +771,7 @@ const getOrderById = async (orderId: string) => {
         },
       },
  
-      statusHistory: {
-        orderBy: { createdAt: "asc" },
-        // Limit to last 20 — prevents unbounded fetch on orders with many updates
-        take: 20,
-        select: {
-          id: true,
-          status: true,
-          note: true,
-          createdAt: true,
-          updatedBy: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-        },
-      },
+
     },
   });
  

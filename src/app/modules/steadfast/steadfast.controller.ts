@@ -20,18 +20,7 @@ const sendSingleOrder = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-const sendBulkOrders = catchAsync(async (req: Request, res: Response) => {
-  const { orderIds } = req.body;
 
-  const result = await SteadfastService.sendBulkOrdersToSteadfast(orderIds);
-
-  sendResponse(res, {
-    statusCode: httpStatus.OK,
-    success: true,
-    message: "Bulk orders sent to Steadfast successfully",
-    data: result,
-  });
-});
 
 const syncCourierStatus = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
@@ -120,7 +109,7 @@ const deleteSteadfastHistory = catchAsync(async (req: Request, res: Response) =>
 
 export const SteadfastController = {
   sendSingleOrder,
-  sendBulkOrders,
+
   syncCourierStatus,
   getSteadfastHistory,
   getSteadfastHistoryById,

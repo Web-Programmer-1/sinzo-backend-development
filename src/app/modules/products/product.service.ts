@@ -454,14 +454,10 @@ export default getAllProducts;
 
 
 
-
-
-
 const CACHE_TTL = 60 * 10; 
 
 export const getSingleProduct = async (slug: string) => {
   const cacheKey = `product:${slug}`;
-
 
   const cachedData = await redis.get(cacheKey);
   if (cachedData) {
@@ -501,7 +497,7 @@ export const getSingleProduct = async (slug: string) => {
 
   const relatedProducts = await prisma.product.findMany({
     where: {
-          categoryId: product.category.id,
+      categoryId: product.category.id,
       NOT: { id: product.id },
       stock: { gt: 0 }, 
     },
@@ -521,12 +517,19 @@ export const getSingleProduct = async (slug: string) => {
 
   const result = { ...product, relatedProducts };
 
-  // ৪. রেজাল্ট ক্যাশে সেভ করুন
+  // Cache save with TTL
   await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
 
   return result;
 };
 
+export const invalidateProductCache = async (slug: string) => {
+  const cacheKey = `product:${slug}`;
+  await redis.del(cacheKey);
+  
+  // Also clear not_found cache if exists
+  await redis.del(`product:not_found:${slug}`);
+};
 
 
 
@@ -638,7 +641,9 @@ const updateProduct = async (id: string, payload: Partial<TProductPayload>) => {
           : undefined,
       price: payload.price !== undefined ? Number(payload.price) : undefined,
       stock: payload.stock !== undefined ? Number(payload.stock) : undefined,
-      badge: payload.badge ?? undefined,
+badge: payload.badge !== undefined 
+  ? (payload.badge.trim() === "" ? null : payload.badge) 
+  : undefined,
       categoryId: payload.categoryId ?? undefined,
       productCardImage:
         payload.productCardImage !== undefined
