@@ -17,7 +17,7 @@ if ( process.env.NODE_ENV === 'production') {
 
 const allowedOrigins = [
   "http://localhost:3000",
-  "https://sinzo-frontend-development.vercel.app",
+  "https://sinzo-frontend-dev-w4wv.vercel.app",
 ];
 
 app.use(helmet());
