@@ -3,6 +3,7 @@ import { prisma } from "../../shared/Prisma";
 import AppError from "../../shared/ApiError";
 import {  TProductPayload } from "./products.interface";
 import redis from "../../../config/redis";
+import { invalidateAllProductsCache } from "../../../helper/invalidator";
 
 
 
@@ -158,143 +159,13 @@ const createProduct = async (payload: TProductPayload) => {
       },
     },
   });
-
+    await invalidateAllProductsCache();
   return result;
+
 };
 
 
 
-
-
-
-
-
-
-// const getAllProducts = async (query: any) => {
-//   const {
-//     searchTerm,
-//     minPrice,
-//     maxPrice,
-//     categoryId,
-//     size,
-//     color,
-//     sort,
-//     page = 1,
-//     limit = 12,
-//   } = query;
-
-//   const andConditions: any[] = [];
-
-//   if (searchTerm) {
-//     andConditions.push({
-//       title: {
-//         contains: searchTerm,
-//         mode: "insensitive",
-//       },
-//     });
-//   }
-
-//   if (categoryId) {
-//     andConditions.push({
-//       categoryId,
-//     });
-//   }
-
-//   if (minPrice || maxPrice) {
-//     andConditions.push({
-//       price: {
-//         gte: minPrice ? Number(minPrice) : undefined,
-//         lte: maxPrice ? Number(maxPrice) : undefined,
-//       },
-//     });
-//   }
-
-//   if (size) {
-//     andConditions.push({
-//       sizes: {
-//         has: size,
-//       },
-//     });
-//   }
-
-//   const whereConditions = andConditions.length ? { AND: andConditions } : {};
-
-//   let orderBy: any = { createdAt: "desc" };
-
-//   if (sort === "oldest") {
-//     orderBy = { createdAt: "asc" };
-//   } else if (sort === "price_asc") {
-//     orderBy = { price: "asc" };
-//   } else if (sort === "price_high") {
-//     orderBy = { price: "desc" };
-//   }
-
-//   // first fetch all matched products except color
-//   const allProducts = await prisma.product.findMany({
-//     where: whereConditions,
-//     orderBy,
-//     select: {
-//       id: true,
-//       slug: true,
-//       productCardImage: true,
-//       title: true,
-//       price: true,
-//       cardShortTitle: true,
-//       badge: true,
-//       stock: true,
-//       description: true,
-//       totalReviews: true,
-//       colorVariants: true,
-//       category: {
-//         select: {
-//           title: true,
-//           thumbnailImage: true,
-//         },
-//       },
-//       createdAt: true,
-//     },
-//   });
-
-//   // color filter from colorVariants json
-//   let filteredProducts = allProducts;
-
-//   if (color) {
-//     const normalizedQueryColor = String(color).trim().toLowerCase();
-
-//     filteredProducts = allProducts.filter((product: any) => {
-//       const variants = product?.colorVariants;
-
-//       if (!Array.isArray(variants)) return false;
-
-//       return variants.some((variant: any) => {
-//         const variantColor = String(variant?.color || "")
-//           .trim()
-//           .toLowerCase();
-
-//         return variantColor === normalizedQueryColor;
-//       });
-//     });
-//   }
-
-//   const total = filteredProducts.length;
-
-//   const skip = (Number(page) - 1) * Number(limit);
-//   const paginatedProducts = filteredProducts.slice(
-//     skip,
-//     skip + Number(limit)
-//   );
-
-//   const finalData = paginatedProducts.map(({ colorVariants, createdAt, ...rest }) => rest);
-
-//   return {
-//     meta: {
-//       page: Number(page),
-//       limit: Number(limit),
-//       total,
-//     },
-//     data: finalData,
-//   };
-// };
 
 
 
@@ -315,17 +186,12 @@ const getAllProducts = async (query: any) => {
     limit = 12,
   } = query;
 
-  const cacheKey = `products:${JSON.stringify({
-    searchTerm,
-    minPrice,
-    maxPrice,
-    categoryId,
-    size,
-    color,
-    sort,
-    page,
-    limit,
-  })}`;
+
+const cacheKey = `products:${new URLSearchParams(
+  Object.entries({ searchTerm, minPrice, maxPrice, categoryId, size, color, sort, page, limit })
+    .filter(([_, v]) => v !== undefined && v !== null && v !== "")
+    .map(([k, v]) => [k, String(v)])
+).toString()}`;
 
   try {
     const cachedData = await redis.get(cacheKey);
@@ -456,12 +322,18 @@ export default getAllProducts;
 
 const CACHE_TTL = 60 * 10; 
 
+
+
 export const getSingleProduct = async (slug: string) => {
   const cacheKey = `product:${slug}`;
 
-  const cachedData = await redis.get(cacheKey);
-  if (cachedData) {
-    return JSON.parse(cachedData);
+  // শুধু একটা try/catch — প্রথমটা সম্পূর্ণ বাদ দাও
+  try {
+    const cachedData = await redis.get(cacheKey);
+    if (cachedData) return JSON.parse(cachedData);
+  } catch (error) {
+    console.error('Redis GET Error:', error);
+    // error হলে শুধু DB-তে যাবে, crash করবে না
   }
 
   const product = await prisma.product.findUnique({
@@ -483,7 +355,6 @@ export const getSingleProduct = async (slug: string) => {
       sizeGuideData: true,
       averageRating: true,
       totalReviews: true,
-
       category: {
         select: { id: true, title: true, thumbnailImage: true },
       },
@@ -491,7 +362,12 @@ export const getSingleProduct = async (slug: string) => {
   });
 
   if (!product) {
-    await redis.setex(`product:not_found:${slug}`, 60, 'null');
+    // এখানেও try/catch দাও
+    try {
+      await redis.setex(`product:not_found:${slug}`, 60, 'null');
+    } catch (error) {
+      console.error('Redis SET Error:', error);
+    }
     throw new AppError(httpStatus.NOT_FOUND, 'Product not found');
   }
 
@@ -499,7 +375,7 @@ export const getSingleProduct = async (slug: string) => {
     where: {
       categoryId: product.category.id,
       NOT: { id: product.id },
-      stock: { gt: 0 }, 
+      stock: { gt: 0 },
     },
     take: 4,
     orderBy: { createdAt: 'desc' },
@@ -517,20 +393,27 @@ export const getSingleProduct = async (slug: string) => {
 
   const result = { ...product, relatedProducts };
 
-  // Cache save with TTL
-  await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
+  // এখানেও try/catch
+  try {
+    await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
+  } catch (error) {
+    console.error('Redis SET Error:', error);
+  }
 
   return result;
 };
 
-export const invalidateProductCache = async (slug: string) => {
-  const cacheKey = `product:${slug}`;
-  await redis.del(cacheKey);
-  
-  // Also clear not_found cache if exists
-  await redis.del(`product:not_found:${slug}`);
-};
 
+
+
+export const invalidateProductCache = async (slug: string) => {
+  try {
+    await redis.del(`product:${slug}`);
+    await redis.del(`product:not_found:${slug}`);
+  } catch (error) {
+    console.error('Redis invalidation error:', error);
+  }
+};
 
 
 
@@ -691,6 +574,8 @@ badge: payload.badge !== undefined
     },
   });
 
+  await invalidateAllProductsCache();
+await invalidateProductCache(existingProduct.slug);
   return result;
 };
 

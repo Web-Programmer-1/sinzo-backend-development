@@ -52,9 +52,17 @@ const deleteCheckoutDraft = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+
+
+
+
+
+
+
 export const CheckoutDraftController = {
   createCheckoutDraft,
   updateCheckoutDraft,
   getAllCheckoutDrafts,
   deleteCheckoutDraft,
+
 };

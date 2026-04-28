@@ -15,6 +15,7 @@ router.get(
   CheckoutDraftController.getAllCheckoutDrafts
 );
 
+
 router.delete("/:id", CheckoutDraftController.deleteCheckoutDraft);
 
 export const CheckoutDraftRoutes = router;

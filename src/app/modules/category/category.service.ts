@@ -3,6 +3,7 @@ import AppError from "../../shared/ApiError";
 import { prisma } from "../../shared/Prisma";
 import { TCategoryPayload } from "./category.interface";
 import redis from "../../../config/redis";
+import { invalidateAllCategoriesCache } from "../../../helper/redisCategoryInvalitor";
 
 const createCategory = async (payload: TCategoryPayload) => {
   const { title, thumbnailImage } = payload;
@@ -30,7 +31,7 @@ const createCategory = async (payload: TCategoryPayload) => {
       thumbnailImage: thumbnailImage || "",
     },
   });
-
+await invalidateAllCategoriesCache();
   return result;
 };
 
@@ -45,13 +46,16 @@ const getAllCategories = async (query: Record<string, any>) => {
   const page = Number(query.page) || 1;
   const limit = Number(query.limit) || 10;
 
-  const cacheKey = `categories:${JSON.stringify({ searchTerm, page, limit })}`;
+  // ✓ clean cache key — undefined/empty value বাদ
+  const params = new URLSearchParams(
+    Object.entries({ searchTerm, page: String(page), limit: String(limit) })
+      .filter(([_, v]) => v !== "" && v !== undefined)
+  ).toString();
+  const cacheKey = `categories:${params}`;
 
   try {
     const cachedData = await redis.get(cacheKey);
-    if (cachedData) {
-      return JSON.parse(cachedData);
-    }
+    if (cachedData) return JSON.parse(cachedData);
   } catch (error) {
     console.error('Redis GET Error:', error);
   }
@@ -59,26 +63,17 @@ const getAllCategories = async (query: Record<string, any>) => {
   const skip = (page - 1) * limit;
 
   const whereConditions = searchTerm
-    ? {
-        title: {
-          contains: searchTerm,
-          mode: "insensitive" as const,
-        },
-      }
+    ? { title: { contains: searchTerm, mode: "insensitive" as const } }
     : {};
 
   const [result, total] = await Promise.all([
     prisma.category.findMany({
       where: whereConditions,
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: { createdAt: "desc" },
       skip,
       take: limit,
     }),
-    prisma.category.count({
-      where: whereConditions,
-    }),
+    prisma.category.count({ where: whereConditions }),
   ]);
 
   const responseData = {
@@ -99,10 +94,6 @@ const getAllCategories = async (query: Record<string, any>) => {
 
   return responseData;
 };
-
-
-
-
 
 
 
@@ -160,7 +151,7 @@ const updateCategory = async (id: string, payload: TCategoryPayload) => {
       thumbnailImage: payload.thumbnailImage ?? category.thumbnailImage,
     },
   });
-
+await invalidateAllCategoriesCache();
   return result;
 };
 
@@ -186,7 +177,7 @@ const deleteCategory = async (id: string) => {
   await prisma.category.delete({
     where: { id },
   });
-
+await invalidateAllCategoriesCache();
   return null;
 };
 
