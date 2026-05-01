@@ -55,16 +55,36 @@ const forgotPassword = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+// const getAllUsers = catchAsync(async (req: Request, res: Response) => {
+//   const result = await UserServices.getAllUsers();
+
+//   sendResponse(res, {
+//     statusCode: httpStatus.OK,
+//     success: true,
+//     message: "Users fetched successfully",
+//     data: result,
+//   });
+// });
+
+
+
 const getAllUsers = catchAsync(async (req: Request, res: Response) => {
-  const result = await UserServices.getAllUsers();
+  // Extract query parameters
+  const query = req.query;
+  
+  // Call service with parsed queries
+  const result = await UserServices.getAllUsers(query);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
-    message: "Users fetched successfully",
-    data: result,
+    message: 'Users fetched successfully',
+    meta: result.meta, // Pagination info
+    data: result.data, // User list
   });
 });
+
+
 
 const getUserById = catchAsync(async (req: Request, res: Response) => {
   const result = await UserServices.getUserById(req.params.id as string);

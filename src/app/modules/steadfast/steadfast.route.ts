@@ -15,7 +15,7 @@ router.post(
 
 router.get(
   "/sync-status/:id",
-  authGuard(UserRole.ADMIN, UserRole.CUSTOMER),
+  authGuard(UserRole.ADMIN),
   SteadfastController.syncCourierStatus
 );
 
@@ -25,26 +25,26 @@ router.get(
 
 router.get(
   "/history",
-  authGuard(UserRole.ADMIN, UserRole.CUSTOMER),
+  authGuard(UserRole.ADMIN),
   SteadfastController.getSteadfastHistory
 );
 
 router.get(
   "/history/:id",
-  authGuard(UserRole.ADMIN, UserRole.CUSTOMER),
+  authGuard(UserRole.ADMIN),
   SteadfastController.getSteadfastHistoryById
 );
 
 
 router.get(
   "/history/:id/download",
-  authGuard(UserRole.ADMIN, UserRole.CUSTOMER),
+  authGuard(UserRole.ADMIN),
   SteadfastController.downloadSteadfastHistoryPdf
 );
 
 router.delete(
   "/history/:id",
-  authGuard(UserRole.ADMIN, UserRole.CUSTOMER),
+  authGuard(UserRole.ADMIN),
   SteadfastController.deleteSteadfastHistory
 );
 

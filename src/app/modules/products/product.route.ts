@@ -10,7 +10,7 @@ const router = Router();
 
 router.post(
   "/create-product",
-  authGuard(UserRole.ADMIN, UserRole.CUSTOMER),
+  authGuard(UserRole.ADMIN),
   uploadImage.fields([
     { name: "productCardImage", maxCount: 1 },
     { name: "galleryImages", maxCount: 10 },
@@ -46,7 +46,7 @@ router.get("/:slug", ProductControllers.getSingleProduct);
 
 router.patch(
   "/:id",
-  authGuard(UserRole.ADMIN, UserRole.CUSTOMER),
+  authGuard(UserRole.ADMIN),
   uploadImage.fields([
     { name: "productCardImage", maxCount: 1 },
     { name: "galleryImages", maxCount: 10 },
@@ -70,7 +70,7 @@ router.patch(
 
 router.delete(
   "/:id",
-  authGuard(UserRole.ADMIN, UserRole.CUSTOMER),
+  authGuard(UserRole.ADMIN),
   ProductControllers.deleteProduct
 );
 

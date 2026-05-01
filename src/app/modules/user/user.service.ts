@@ -4,6 +4,7 @@ import { comparePassword, hashPassword } from "../../../util/bcryptJs";
 import { prisma } from "../../shared/Prisma";
 import { createToken } from "../../../util/jwt";
 import { UserStatus } from "@prisma/client";
+import { IGetAllUsersQuery } from "./user.interface";
 
 const registerUser = async (payload: any) => {
   const isUserExists = await prisma.user.findUnique({
@@ -118,11 +119,59 @@ const forgotPassword = async (email: string) => {
   };
 };
 
-const getAllUsers = async () => {
+// const getAllUsers = async () => {
+//   const result = await prisma.user.findMany({
+//     orderBy: {
+//       createdAt: "desc",
+//     },
+//     select: {
+//       id: true,
+//       name: true,
+//       email: true,
+//       role: true,
+//       status: true,
+//       fullName: true,
+//       country: true,
+//       city: true,
+//       area: true,
+//       addressLine: true,
+//       profileImage: true,
+//       phone: true,
+//       createdAt: true,
+//       updatedAt: true,
+//     },
+//   });
+
+//   return result;
+// };
+
+
+
+
+const getAllUsers = async (query: IGetAllUsersQuery) => {
+  const { page = 1, limit = 10, email } = query;
+
+  const skip = (Number(page) - 1) * Number(limit);
+  const take = Number(limit);
+
+  // Search Filter Logic
+  const whereCondition: any = {};
+  
+  if (email) {
+    whereCondition.email = {
+      contains: email,
+      mode: 'insensitive', // Case-insensitive search (e.g., Test@Gmail.com == test@gmail.com)
+    };
+  }
+
+  // Fetch Data
   const result = await prisma.user.findMany({
+    where: whereCondition,
     orderBy: {
-      createdAt: "desc",
+      createdAt: 'desc',
     },
+    skip: skip,
+    take: take,
     select: {
       id: true,
       name: true,
@@ -141,8 +190,25 @@ const getAllUsers = async () => {
     },
   });
 
-  return result;
+  // Total Count for Pagination Metadata
+  const total = await prisma.user.count({
+    where: whereCondition,
+  });
+
+  return {
+    meta: {
+      page: Number(page),
+      limit: Number(limit),
+      total,
+    },
+    data: result,
+  };
 };
+
+
+
+
+
 
 const getUserById = async (id: string) => {
   const result = await prisma.user.findUnique({

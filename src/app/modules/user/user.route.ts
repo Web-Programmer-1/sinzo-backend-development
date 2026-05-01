@@ -14,7 +14,7 @@ router.post("/forgot-password", UserControllers.forgotPassword);
 
 router.get("/me", authGuard(UserRole.ADMIN, UserRole.CUSTOMER), UserControllers.getMe);
 
-router.get("/", authGuard(UserRole.ADMIN, UserRole.CUSTOMER), UserControllers.getAllUsers);
+router.get("/", authGuard(UserRole.ADMIN), UserControllers.getAllUsers);
 router.get("/:id", authGuard(UserRole.ADMIN), UserControllers.getUserById);
 router.patch(
   "/:id",
