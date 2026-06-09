@@ -27,10 +27,10 @@ if (process.env.NODE_ENV === 'production') {
 
 const allowedOrigins = [
   "http://localhost:3000",    
-      "https://sinzo-frontend-dev-s1ej.vercel.app/",
+  "https://sinzo-frontend-dev-s1ej.vercel.app",
   "https://www.sinzooffcial.com", 
   "https://sinzooffcial.com",    
-  "https://sinzo-frontend-dev-w4wv.vercel.app", 
+
 ];
 
 app.use(helmet());
