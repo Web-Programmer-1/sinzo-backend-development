@@ -1,7 +1,7 @@
 import httpStatus from "http-status";
 import { prisma } from "../../shared/Prisma";
 import AppError from "../../shared/ApiError";
-import {  TProductPayload } from "./products.interface";
+import { TProductPayload } from "./products.interface";
 import redis from "../../../config/redis";
 import { invalidateAllProductsCache } from "../../../helper/invalidator";
 
@@ -99,10 +99,10 @@ const createProduct = async (payload: TProductPayload) => {
       !title
         ? "Title is required"
         : !categoryId
-        ? "Category id is required"
-        : !productCardImage
-        ? "Product card image is required"
-        : "Price must be greater than 0"
+          ? "Category id is required"
+          : !productCardImage
+            ? "Product card image is required"
+            : "Price must be greater than 0"
     );
   }
 
@@ -115,9 +115,9 @@ const createProduct = async (payload: TProductPayload) => {
     }),
     slug
       ? prisma.product.findUnique({
-          where: { slug },
-          select: { id: true },
-        })
+        where: { slug },
+        select: { id: true },
+      })
       : Promise.resolve(null),
   ]);
 
@@ -159,10 +159,15 @@ const createProduct = async (payload: TProductPayload) => {
       },
     },
   });
-    await invalidateAllProductsCache();
+  await invalidateAllProductsCache();
   return result;
 
 };
+
+
+
+
+
 
 
 
@@ -183,15 +188,15 @@ const getAllProducts = async (query: any) => {
     color,
     sort,
     page = 1,
-    limit = 12,
+    limit = 10000000000,
   } = query;
 
 
-const cacheKey = `products:${new URLSearchParams(
-  Object.entries({ searchTerm, minPrice, maxPrice, categoryId, size, color, sort, page, limit })
-    .filter(([_, v]) => v !== undefined && v !== null && v !== "")
-    .map(([k, v]) => [k, String(v)])
-).toString()}`;
+  const cacheKey = `products:${new URLSearchParams(
+    Object.entries({ searchTerm, minPrice, maxPrice, categoryId, size, color, sort, page, limit })
+      .filter(([_, v]) => v !== undefined && v !== null && v !== "")
+      .map(([k, v]) => [k, String(v)])
+  ).toString()}`;
 
   try {
     const cachedData = await redis.get(cacheKey);
@@ -320,20 +325,33 @@ export default getAllProducts;
 
 
 
-const CACHE_TTL = 60 * 10; 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const CACHE_TTL = 60 * 10;
 
 
 
 export const getSingleProduct = async (slug: string) => {
   const cacheKey = `product:${slug}`;
 
-  // শুধু একটা try/catch — প্রথমটা সম্পূর্ণ বাদ দাও
   try {
     const cachedData = await redis.get(cacheKey);
     if (cachedData) return JSON.parse(cachedData);
   } catch (error) {
     console.error('Redis GET Error:', error);
-    // error হলে শুধু DB-তে যাবে, crash করবে না
   }
 
   const product = await prisma.product.findUnique({
@@ -362,7 +380,6 @@ export const getSingleProduct = async (slug: string) => {
   });
 
   if (!product) {
-    // এখানেও try/catch দাও
     try {
       await redis.setex(`product:not_found:${slug}`, 60, 'null');
     } catch (error) {
@@ -393,7 +410,6 @@ export const getSingleProduct = async (slug: string) => {
 
   const result = { ...product, relatedProducts };
 
-  // এখানেও try/catch
   try {
     await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
   } catch (error) {
@@ -442,16 +458,16 @@ const updateProduct = async (id: string, payload: Partial<TProductPayload>) => {
   const [category, existingSlug] = await Promise.all([
     payload.categoryId
       ? prisma.category.findUnique({
-          where: { id: payload.categoryId },
-          select: { id: true },
-        })
+        where: { id: payload.categoryId },
+        select: { id: true },
+      })
       : Promise.resolve(null),
 
     payload.slug && payload.slug !== existingProduct.slug
       ? prisma.product.findUnique({
-          where: { slug: payload.slug },
-          select: { id: true },
-        })
+        where: { slug: payload.slug },
+        select: { id: true },
+      })
       : Promise.resolve(null),
   ]);
 
@@ -524,9 +540,9 @@ const updateProduct = async (id: string, payload: Partial<TProductPayload>) => {
           : undefined,
       price: payload.price !== undefined ? Number(payload.price) : undefined,
       stock: payload.stock !== undefined ? Number(payload.stock) : undefined,
-badge: payload.badge !== undefined 
-  ? (payload.badge.trim() === "" ? null : payload.badge) 
-  : undefined,
+      badge: payload.badge !== undefined
+        ? (payload.badge.trim() === "" ? null : payload.badge)
+        : undefined,
       categoryId: payload.categoryId ?? undefined,
       productCardImage:
         payload.productCardImage !== undefined
@@ -575,7 +591,7 @@ badge: payload.badge !== undefined
   });
 
   await invalidateAllProductsCache();
-await invalidateProductCache(existingProduct.slug);
+  await invalidateProductCache(existingProduct.slug);
   return result;
 };
 
@@ -632,7 +648,6 @@ const getRelatedProducts = async (
     throw new AppError(httpStatus.NOT_FOUND, "Product not found");
   }
 
-  // Step 1: same category related products
   const sameCategoryProducts = await prisma.product.findMany({
     where: {
       categoryId: product.categoryId,
@@ -667,7 +682,6 @@ const getRelatedProducts = async (
     take: parsedLimit,
   });
 
-  // Step 2: if not enough, fill with other products
   if (sameCategoryProducts.length < parsedLimit) {
     const remaining = parsedLimit - sameCategoryProducts.length;
 

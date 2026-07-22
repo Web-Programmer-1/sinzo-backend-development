@@ -5,42 +5,6 @@ import sendResponse from "../../shared/sendResponse";
 import { ProductServices } from "./product.service";
 import AppError from "../../shared/ApiError";
 
-// const createProduct = catchAsync(async (req: Request, res: Response) => {
-//   const files = req.files as {
-//     [fieldname: string]: Express.MulterS3.File[];
-//   };
-
-//   const productCardImage = files?.productCardImage?.[0]?.location || null;
-
-//   const galleryImages =
-//     files?.galleryImages?.map((file) => file.location) || [];
-
-//   const sizeGuideImage = files?.sizeGuideImage?.[0]?.location || null;
-
-//   const payload = {
-//     ...req.body,
-//     price: Number(req.body.price),
-//     stock: req.body.stock ? Number(req.body.stock) : 0,
-//     colors: req.body.colors ? JSON.parse(req.body.colors) : [],
-//     sizes: req.body.sizes ? JSON.parse(req.body.sizes) : [],
-//     sizeGuideData: req.body.sizeGuideData
-//       ? JSON.parse(req.body.sizeGuideData)
-//       : null,
-//     productCardImage,
-//     galleryImages,
-//     sizeGuideImage,
-//   };
-
-//   const result = await ProductServices.createProduct(payload);
-
-//   sendResponse(res, {
-//     statusCode: httpStatus.CREATED,
-//     success: true,
-//     message: "Product created successfully",
-//     data: result,
-//   });
-// });
-
 
 
 
@@ -138,68 +102,6 @@ const getSingleProduct = catchAsync(async (req: Request, res: Response) => {
 
 
 
-// const updateProduct = catchAsync(async (req: Request, res: Response) => {
-//   const files = req.files as {
-//     [fieldname: string]: Express.MulterS3.File[];
-//   };
-
-//   const productCardImage = files?.productCardImage?.[0]?.location;
-//   const galleryImages = files?.galleryImages?.map((file) => file.location);
-//   const sizeGuideImage = files?.sizeGuideImage?.[0]?.location;
-
-//   const payload: any = {
-//     ...req.body,
-//   };
-
-//   if (req.body.price !== undefined) {
-//     payload.price = Number(req.body.price);
-//   }
-
-//   if (req.body.stock !== undefined) {
-//     payload.stock = Number(req.body.stock);
-//   }
-
-//   if (req.body.averageRating !== undefined) {
-//     payload.averageRating = Number(req.body.averageRating);
-//   }
-
-//   if (req.body.totalReviews !== undefined) {
-//     payload.totalReviews = Number(req.body.totalReviews);
-//   }
-
-//   if (req.body.colors) {
-//     payload.colors = JSON.parse(req.body.colors);
-//   }
-
-//   if (req.body.sizes) {
-//     payload.sizes = JSON.parse(req.body.sizes);
-//   }
-
-//   if (req.body.sizeGuideData) {
-//     payload.sizeGuideData = JSON.parse(req.body.sizeGuideData);
-//   }
-
-//   if (productCardImage) {
-//     payload.productCardImage = productCardImage;
-//   }
-
-//   if (galleryImages && galleryImages.length) {
-//     payload.galleryImages = galleryImages;
-//   }
-
-//   if (sizeGuideImage) {
-//     payload.sizeGuideImage = sizeGuideImage;
-//   }
-
-//   const result = await ProductServices.updateProduct(req.params.id as string, payload);
-
-//   sendResponse(res, {
-//     statusCode: httpStatus.OK,
-//     success: true,
-//     message: "Product updated successfully",
-//     data: result,
-//   });
-// });
 
 
 
